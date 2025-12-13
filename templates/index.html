@@ -96,7 +96,8 @@
                         <div class="advice-box" id="emailAdvice"></div>
                         
                         <div class="results-actions">
-                            <button class="btn btn-secondary btn-sm" onclick="generateEmailReport()">📄 Download PDF Report</button>
+                            <button class="btn btn-secondary btn-sm" onclick="generateEmailReport()">📄 PDF Report</button>
+                            <button class="btn btn-secondary btn-sm" onclick="shareAnalysis('email')">📤 Share</button>
                         </div>
                         
                         <div class="results-section">
@@ -195,7 +196,16 @@
                         <div class="advice-box" id="urlSummary"></div>
                         
                         <div class="results-actions">
-                            <button class="btn btn-secondary btn-sm" onclick="generateUrlReport()">📄 Download PDF Report</button>
+                            <button class="btn btn-secondary btn-sm" onclick="generateUrlReport()">📄 PDF Report</button>
+                            <button class="btn btn-secondary btn-sm" onclick="shareAnalysis('url')">📤 Share</button>
+                            <button class="btn btn-secondary btn-sm" onclick="captureScreenshot()">📸 Screenshot</button>
+                            <button class="btn btn-danger btn-sm" onclick="reportPhishing()">🚨 Report</button>
+                        </div>
+                        
+                        <!-- Screenshot Preview -->
+                        <div class="results-section" id="screenshotSection" style="display: none;">
+                            <h3>📸 Page Screenshot</h3>
+                            <div id="screenshotPreview" class="screenshot-preview"></div>
                         </div>
                         
                         <div class="results-section collapsible">
@@ -396,6 +406,40 @@ To get headers:
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
         <p id="loadingText">Analyzing...</p>
+    </div>
+
+    <!-- Share Modal -->
+    <div class="modal-overlay" id="shareModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📤 Share Analysis</h3>
+                <button class="modal-close" onclick="closeModal('shareModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="share-buttons">
+                    <button class="btn btn-primary" onclick="shareToTwitter()">🐦 Twitter/X</button>
+                    <button class="btn btn-secondary" onclick="shareViaEmail()">📧 Email</button>
+                    <button class="btn btn-secondary" onclick="copyShareText()">📋 Copy</button>
+                </div>
+                <div class="share-text-box">
+                    <textarea id="shareTextArea" rows="6" readonly></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal-overlay" id="reportModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>🚨 Report Phishing URL</h3>
+                <button class="modal-close" onclick="closeModal('reportModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px; color: var(--text-secondary);">Report this URL to security services:</p>
+                <div class="report-links" id="reportLinks"></div>
+            </div>
+        </div>
     </div>
 
     <script>
