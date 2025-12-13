@@ -3,1145 +3,256 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enterprise AI Phishing Detector | PacketWhisperer</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --primary-bg: #0f172a;
-            --secondary-bg: #1e293b;
-            --accent-color: #38bdf8;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --border: #334155;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --purple: #8b5cf6;
-            --orange: #f97316;
-        }
-
-        body.light-theme {
-            --primary-bg: #f8fafc;
-            --secondary-bg: #e2e8f0;
-            --accent-color: #0ea5e9;
-            --text-primary: #0f172a;
-            --text-secondary: #475569;
-            --border: #cbd5e1;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--primary-bg);
-            color: var(--text-primary);
-            line-height: 1.6;
-            transition: all 0.3s ease;
-        }
-
-        .header {
-            background: linear-gradient(135deg, var(--secondary-bg), var(--accent-color), var(--purple));
-            padding: 2rem 0;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.2) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.2) 0%, transparent 50%);
-        }
-
-        .header h1 {
-            font-size: 3.5rem;
-            margin-bottom: 0.5rem;
-            color: white;
-            position: relative;
-            z-index: 1;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-
-        .header p {
-            font-size: 1.3rem;
-            opacity: 0.95;
-            color: white;
-            position: relative;
-            z-index: 1;
-        }
-
-        .enterprise-badge {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 0.5rem 1rem;
-            border-radius: 25px;
-            margin-top: 0.5rem;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            position: relative;
-            z-index: 1;
-        }
-
-        .stats-bar {
-            background: rgba(255, 255, 255, 0.15);
-            padding: 1rem;
-            margin-top: 1rem;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            position: relative;
-            z-index: 1;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        .stat-chip {
-            color: white;
-            font-size: 0.9rem;
-            padding: 0.5rem 1rem;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .theme-toggle {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: white;
-            padding: 0.75rem 1.25rem;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            z-index: 2;
-            backdrop-filter: blur(10px);
-        }
-
-        .theme-toggle:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
-        }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 2rem;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto;
-            gap: 2rem;
-        }
-
-        .input-section {
-            grid-column: 1;
-            grid-row: 1;
-        }
-
-        .results-section {
-            grid-column: 2;
-            grid-row: 1;
-        }
-
-        .monitoring-section {
-            grid-column: 1 / -1;
-            grid-row: 2;
-        }
-
-        .section {
-            background: var(--secondary-bg);
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            border: 1px solid var(--border);
-        }
-
-        .section-title {
-            font-size: 1.6rem;
-            margin-bottom: 1.5rem;
-            color: var(--accent-color);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-        }
-
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 1rem;
-            border: 2px solid var(--border);
-            border-radius: 12px;
-            background: var(--primary-bg);
-            color: var(--text-primary);
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
-        }
-
-        .analyze-btn {
-            width: 100%;
-            padding: 1.25rem 2rem;
-            background: linear-gradient(135deg, var(--accent-color), var(--purple));
-            color: white;
-            border: none;
-            border-radius: 15px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .analyze-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px rgba(56, 189, 248, 0.4);
-        }
-
-        .analyze-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 3rem;
-        }
-
-        .spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid var(--border);
-            border-top: 4px solid var(--accent-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .results {
-            display: block;
-        }
-
-        .threat-level {
-            text-align: center;
-            padding: 2.5rem;
-            border-radius: 20px;
-            margin-bottom: 2rem;
-            border: 3px solid var(--border);
-            background: var(--primary-bg);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .threat-score {
-            font-size: 4rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, var(--accent-color), var(--purple));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .threat-label {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
-        .threat-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.15); }
-        }
-
-        .enterprise-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 1rem;
-            margin: 1.5rem 0;
-        }
-
-        .stat-item {
-            background: var(--secondary-bg);
-            padding: 1rem;
-            border-radius: 12px;
-            text-align: center;
-            border: 1px solid var(--border);
-        }
-
-        .stat-value {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: var(--accent-color);
-        }
-
-        .stat-label {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            margin-top: 0.25rem;
-        }
-
-        .ml-section {
-            background: linear-gradient(135deg, var(--purple), var(--accent-color));
-            padding: 1.5rem;
-            border-radius: 15px;
-            margin: 1rem 0;
-            color: white;
-        }
-
-        .url-status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin: 0.5rem 0;
-            padding: 0.75rem;
-            background: var(--secondary-bg);
-            border-radius: 8px;
-        }
-
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            animation: blink 2s infinite;
-        }
-
-        .status-indicator.checking {
-            background: var(--warning);
-        }
-
-        .status-indicator.safe {
-            background: var(--success);
-        }
-
-        .status-indicator.danger {
-            background: var(--danger);
-        }
-
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.3; }
-        }
-
-        .reasons-list {
-            background: var(--primary-bg);
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-top: 1.5rem;
-            display: none;
-        }
-
-        .reason-item {
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            background: var(--secondary-bg);
-            border-radius: 10px;
-            border-left: 4px solid;
-            position: relative;
-            animation: slideIn 0.4s ease;
-        }
-
-        @keyframes slideIn {
-            from { transform: translateX(-30px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        .reason-item.critical {
-            border-left-color: var(--danger);
-            background: linear-gradient(90deg, rgba(239, 68, 68, 0.1), var(--secondary-bg));
-        }
-
-        .reason-item.high-risk {
-            border-left-color: var(--warning);
-            background: linear-gradient(90deg, rgba(245, 158, 11, 0.1), var(--secondary-bg));
-        }
-
-        .reason-item.medium-risk {
-            border-left-color: var(--accent-color);
-        }
-
-        .feedback-section {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: var(--primary-bg);
-            border-radius: 12px;
-            text-align: center;
-        }
-
-        .feedback-btn {
-            margin: 0 0.5rem;
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-
-        .feedback-btn.correct {
-            background: var(--success);
-            color: white;
-        }
-
-        .feedback-btn.incorrect {
-            background: var(--danger);
-            color: white;
-        }
-
-        .feedback-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
-
-        .monitoring-dashboard {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 2rem;
-        }
-
-        .monitor-card {
-            background: var(--primary-bg);
-            padding: 1.5rem;
-            border-radius: 15px;
-            border: 1px solid var(--border);
-        }
-
-        .monitor-status {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .status-dot {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: var(--success);
-            animation: pulse-dot 2s infinite;
-        }
-
-        @keyframes pulse-dot {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-
-        .monitor-btn {
-            padding: 0.75rem 1.5rem;
-            background: var(--accent-color);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-
-        .monitor-btn:hover {
-            background: var(--purple);
-            transform: translateY(-2px);
-        }
-
-        .alert-item {
-            padding: 0.75rem;
-            background: var(--secondary-bg);
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
-            border-left: 4px solid var(--danger);
-        }
-
-        .feature-buttons {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-
-        .feature-btn {
-            padding: 1rem;
-            background: var(--secondary-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            color: var(--text-primary);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: center;
-            font-weight: 500;
-        }
-
-        .feature-btn:hover {
-            background: var(--accent-color);
-            color: white;
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(56, 189, 248, 0.3);
-        }
-
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 1rem 1.5rem;
-            background: var(--success);
-            color: white;
-            border-radius: 12px;
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-            z-index: 1000;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-        }
-
-        .toast.show {
-            transform: translateX(0);
-        }
-
-        .toast.error {
-            background: var(--danger);
-        }
-
-        .toast.warning {
-            background: var(--warning);
-        }
-
-        .toast.ml {
-            background: var(--purple);
-        }
-
-        @media (max-width: 1024px) {
-            .container {
-                grid-template-columns: 1fr;
-                grid-template-rows: auto auto auto;
-            }
-            
-            .input-section {
-                grid-column: 1;
-                grid-row: 1;
-            }
-            
-            .results-section {
-                grid-column: 1;
-                grid-row: 2;
-            }
-            
-            .monitoring-section {
-                grid-column: 1;
-                grid-row: 3;
-            }
-            
-            .monitoring-dashboard {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2.5rem;
-            }
-            
-            .enterprise-stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .feature-buttons {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <title>Phishing Intelligence Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="header">
-        <button class="theme-toggle" onclick="toggleTheme()">
-            <span id="theme-icon">🌙</span>
-        </button>
-        <h1>🚀 Enterprise AI Phishing Detector</h1>
-        <p>Advanced Threat Intelligence | Machine Learning | Real-time Monitoring</p>
-        <div class="enterprise-badge">
-            ⚡ ENTERPRISE EDITION ⚡
-        </div>
-        <div class="stats-bar">
-            <div class="stat-chip">🔗 Live URL Scanning</div>
-            <div class="stat-chip">🤖 Machine Learning AI</div>
-            <div class="stat-chip">📧 Real-time Monitoring</div>
-            <div class="stat-chip">🛡️ Threat Intelligence</div>
-        </div>
-    </div>
-
     <div class="container">
-        <!-- Input Section -->
-        <div class="input-section section">
-            <h2 class="section-title">
-                🔍 Advanced Threat Analysis
-            </h2>
-            
-            <form id="email-form">
-                <div class="form-group">
-                    <label for="sender">📨 Email Sender</label>
-                    <input type="email" id="sender" placeholder="sender@example.com" required>
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🛡️</span>
+                <div class="logo-text">
+                    <h1>Phishing Intelligence Platform</h1>
+                    <span class="version">v4.0 - Email & URL Analysis</span>
                 </div>
-                
-                <div class="form-group">
-                    <label for="subject">📝 Email Subject</label>
-                    <input type="text" id="subject" placeholder="Email subject line" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="body">📄 Email Body</label>
-                    <textarea id="body" rows="5" placeholder="Paste the email content here..."></textarea>
-                </div>
-                
-                <button type="submit" class="analyze-btn" id="analyze-btn">
-                    🚀 Launch Enterprise Analysis
-                </button>
-            </form>
-
-            <div class="feature-buttons">
-                <button class="feature-btn" onclick="loadAdvancedExample()">⚡ Load Advanced Test</button>
-                <button class="feature-btn" onclick="loadMLExample()">🤖 Load ML Test</button>
-                <button class="feature-btn" onclick="loadURLExample()">🔗 Load URL Test</button>
-                <button class="feature-btn" onclick="clearForm()">🔄 Clear Form</button>
-                <button class="feature-btn" onclick="exportResults()">📄 Export Report</button>
-                <button class="feature-btn" onclick="showHelp()">❓ Help & Info</button>
             </div>
+            <div class="header-actions">
+                <button id="themeToggle" class="btn btn-icon" title="Toggle Theme">🌙</button>
+            </div>
+        </header>
+
+        <!-- Main Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="email">
+                <span class="tab-icon">📧</span>
+                <span class="tab-text">Email Analysis</span>
+            </button>
+            <button class="tab" data-tab="url">
+                <span class="tab-icon">🔗</span>
+                <span class="tab-text">URL Analysis</span>
+            </button>
+            <button class="tab" data-tab="monitor">
+                <span class="tab-icon">📡</span>
+                <span class="tab-text">Monitor</span>
+            </button>
         </div>
 
-        <!-- Results Section -->
-        <div class="results-section section">
-            <h2 class="section-title">
-                📊 Enterprise Analysis Results
-            </h2>
-            
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p><strong>Running Enterprise Analysis...</strong></p>
-                <p style="font-size: 0.9rem; opacity: 0.8;">🔗 Checking URLs live<br>🤖 Running ML models<br>🛡️ Correlating threat intelligence</p>
-            </div>
-            
-            <div class="results" id="results">
-                <div class="threat-level" id="threat-display">
-                    <div class="threat-icon" id="threat-icon">🔍</div>
-                    <div class="threat-score" id="threat-score">-</div>
-                    <div class="threat-label" id="threat-label">Ready for Enterprise Analysis</div>
-                    
-                    <div class="enterprise-stats" id="enterprise-stats" style="display: none;">
-                        <div class="stat-item">
-                            <div class="stat-value" id="confidence-value">-</div>
-                            <div class="stat-label">AI Confidence</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="ml-probability">-</div>
-                            <div class="stat-label">ML Probability</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="checks-value">-</div>
-                            <div class="stat-label">Threat Checks</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="url-status">-</div>
-                            <div class="stat-label">URLs Checked</div>
-                        </div>
-                    </div>
-                    
-                    <div class="ml-section" id="ml-section" style="display: none;">
-                        <h4>🤖 Machine Learning Analysis</h4>
-                        <p id="ml-details">ML model analysis will appear here</p>
-                    </div>
-                    
-                    <div id="url-checks" style="display: none;">
-                        <h4>🔗 Live URL Security Checks</h4>
-                        <div id="url-results"></div>
-                    </div>
+        <!-- Email Analysis Tab -->
+        <div class="tab-content active" id="email-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📧 Email Threat Analysis</h2>
+                    <p>Paste suspicious email details to analyze for phishing indicators</p>
                 </div>
-                
-                <div class="reasons-list" id="reasons-container">
-                    <h3>🎯 <span id="threat-indicators-title">Threat Intelligence Report</span></h3>
-                    <div id="reasons-list"></div>
-                </div>
-                
-                <div class="feedback-section" id="feedback-section" style="display: none;">
-                    <h4>🤖 Help Train Our AI</h4>
-                    <p>Was this analysis correct?</p>
-                    <button class="feedback-btn correct" onclick="provideFeedback(true)">✅ Correct</button>
-                    <button class="feedback-btn incorrect" onclick="provideFeedback(false)">❌ Incorrect</button>
+                <div class="card-body">
+                    <form id="emailForm">
+                        <div class="form-group">
+                            <label for="sender">Sender Email Address</label>
+                            <input type="text" id="sender" placeholder="e.g., security@paypa1-verify.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="subject">Email Subject</label>
+                            <input type="text" id="subject" placeholder="e.g., URGENT: Your account has been suspended!" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="body">Email Body</label>
+                            <textarea id="body" rows="6" placeholder="Paste the email content here..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">
+                            <span class="btn-icon">🔍</span>
+                            Analyze Email
+                        </button>
+                    </form>
                 </div>
             </div>
-        </div>
 
-        <!-- Real-time Monitoring Section -->
-        <div class="monitoring-section section">
-            <h2 class="section-title">
-                📡 Real-time Email Monitoring Dashboard
-            </h2>
-            
-            <div class="monitoring-dashboard">
-                <div class="monitor-card">
-                    <h3>🛡️ Monitor Status</h3>
-                    <div class="monitor-status">
-                        <div class="status-dot" id="monitor-dot"></div>
-                        <span id="monitor-status-text">Ready to Monitor</span>
-                    </div>
-                    <button class="monitor-btn" id="monitor-toggle" onclick="toggleMonitoring()">
-                        Start Monitoring
-                    </button>
-                </div>
-                
-                <div class="monitor-card">
-                    <h3>📊 Statistics</h3>
-                    <div class="enterprise-stats">
-                        <div class="stat-item">
-                            <div class="stat-value" id="emails-processed">0</div>
-                            <div class="stat-label">Emails Processed</div>
+            <!-- Email Results -->
+            <div class="results-container" id="emailResults" style="display: none;">
+                <div class="card results-card">
+                    <div class="results-header" id="emailResultsHeader">
+                        <div class="risk-badge">
+                            <span class="risk-icon" id="emailRiskIcon">🔍</span>
+                            <span class="risk-level" id="emailRiskLevel">Analyzing...</span>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="threats-blocked">0</div>
-                            <div class="stat-label">Threats Blocked</div>
+                        <div class="risk-score">
+                            <span class="score-label">Threat Score</span>
+                            <span class="score-value" id="emailScore">--</span>
+                            <span class="score-max">/100</span>
                         </div>
                     </div>
-                </div>
-                
-                <div class="monitor-card">
-                    <h3>🚨 Recent Alerts</h3>
-                    <div id="recent-alerts">
-                        <p style="opacity: 0.7;">No alerts yet. Start monitoring to see real-time threat detection.</p>
+                    <div class="results-body">
+                        <div class="advice-box" id="emailAdvice"></div>
+                        
+                        <div class="results-section">
+                            <h3>🔍 Threat Indicators</h3>
+                            <ul class="findings-list" id="emailFindings"></ul>
+                        </div>
+
+                        <div class="results-section" id="emailUrlsSection" style="display: none;">
+                            <h3>🔗 URLs Found in Email</h3>
+                            <ul class="url-list" id="emailUrls"></ul>
+                            <p class="helper-text">Click "Analyze" to run deep URL analysis</p>
+                        </div>
+
+                        <div class="ml-section">
+                            <h3>🤖 ML Analysis</h3>
+                            <div class="ml-result">
+                                <span>Phishing Probability:</span>
+                                <strong id="emailMlProb">--</strong>
+                            </div>
+                        </div>
+
+                        <div class="feedback-section">
+                            <p>Was this analysis accurate?</p>
+                            <div class="feedback-buttons">
+                                <button class="btn btn-success btn-sm" onclick="submitFeedback(false)">✓ Correct</button>
+                                <button class="btn btn-danger btn-sm" onclick="submitFeedback(true)">✗ Incorrect</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- URL Analysis Tab -->
+        <div class="tab-content" id="url-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h2>🔗 URL Threat Intelligence</h2>
+                    <p>Analyze any suspicious URL for phishing, malware, and security threats</p>
+                </div>
+                <div class="card-body">
+                    <form id="urlForm">
+                        <div class="form-group">
+                            <label for="urlInput">Suspicious URL</label>
+                            <input type="text" id="urlInput" placeholder="e.g., https://paypa1-secure-login.com/verify" required>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-primary">
+                                <span class="btn-icon">🔍</span>
+                                Full Analysis
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="quickCheckBtn">
+                                <span class="btn-icon">⚡</span>
+                                Quick Check
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Quick Check Result -->
+            <div class="quick-result" id="quickResult" style="display: none;">
+                <div class="quick-verdict" id="quickVerdict">CHECKING...</div>
+                <div class="quick-details" id="quickDetails"></div>
+            </div>
+
+            <!-- Full URL Results -->
+            <div class="results-container" id="urlResults" style="display: none;">
+                <div class="card results-card">
+                    <div class="results-header" id="urlResultsHeader">
+                        <div class="risk-badge">
+                            <span class="risk-icon" id="urlRiskIcon">🔍</span>
+                            <span class="risk-level" id="urlRiskLevel">Analyzing...</span>
+                        </div>
+                        <div class="risk-score">
+                            <span class="score-label">Threat Score</span>
+                            <span class="score-value" id="urlScore">--</span>
+                            <span class="score-max">/100</span>
+                        </div>
+                    </div>
+                    <div class="results-body">
+                        <div class="advice-box" id="urlSummary"></div>
+                        
+                        <!-- Domain Info -->
+                        <div class="results-section collapsible">
+                            <h3 class="section-toggle">🌐 Domain Intelligence <span class="toggle-icon">▼</span></h3>
+                            <div class="section-content" id="domainInfo"></div>
+                        </div>
+
+                        <!-- SSL Info -->
+                        <div class="results-section collapsible">
+                            <h3 class="section-toggle">🔒 SSL Certificate <span class="toggle-icon">▼</span></h3>
+                            <div class="section-content" id="sslInfo"></div>
+                        </div>
+
+                        <!-- Redirect Info -->
+                        <div class="results-section collapsible">
+                            <h3 class="section-toggle">↪️ Redirect Analysis <span class="toggle-icon">▼</span></h3>
+                            <div class="section-content" id="redirectInfo"></div>
+                        </div>
+
+                        <!-- DNS Info -->
+                        <div class="results-section collapsible">
+                            <h3 class="section-toggle">📡 DNS Records <span class="toggle-icon">▼</span></h3>
+                            <div class="section-content" id="dnsInfo"></div>
+                        </div>
+
+                        <!-- Content Info -->
+                        <div class="results-section collapsible">
+                            <h3 class="section-toggle">📄 Content Analysis <span class="toggle-icon">▼</span></h3>
+                            <div class="section-content" id="contentInfo"></div>
+                        </div>
+
+                        <!-- Risk Factors -->
+                        <div class="results-section">
+                            <h3>⚠️ All Risk Factors</h3>
+                            <ul class="findings-list" id="urlFindings"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monitor Tab -->
+        <div class="tab-content" id="monitor-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📡 Real-time Monitoring</h2>
+                    <p>Monitor email inbox for phishing threats (simulation)</p>
+                </div>
+                <div class="card-body">
+                    <div class="monitor-status" id="monitorStatus">
+                        <div class="status-indicator offline"></div>
+                        <span>Monitoring: <strong>Inactive</strong></span>
+                    </div>
+                    <div class="monitor-stats">
+                        <div class="stat-box">
+                            <span class="stat-value" id="emailsProcessed">0</span>
+                            <span class="stat-label">Emails Processed</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-value" id="alertsCount">0</span>
+                            <span class="stat-label">Threats Blocked</span>
+                        </div>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-success" id="startMonitor">▶️ Start Monitoring</button>
+                        <button class="btn btn-danger" id="stopMonitor" disabled>⏹️ Stop</button>
+                    </div>
+                    <div class="alerts-container" id="alertsContainer">
+                        <h3>Recent Alerts</h3>
+                        <ul class="alerts-list" id="alertsList"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Built by <strong>The Ghost Packet</strong> | Cybersecurity Portfolio Project</p>
+            <p class="disclaimer">⚠️ For educational purposes. Always verify with official sources.</p>
+        </footer>
     </div>
 
-    <script>
-        console.log("🚀 Enterprise AI Phishing Detector loaded");
-        
-        let currentAnalysisData = null;
-        let monitoringActive = false;
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p>Analyzing...</p>
+    </div>
 
-        // Theme Toggle
-        function toggleTheme() {
-            const body = document.body;
-            const icon = document.getElementById('theme-icon');
-            
-            if (body.classList.contains('light-theme')) {
-                body.classList.remove('light-theme');
-                icon.textContent = '🌙';
-            } else {
-                body.classList.add('light-theme');
-                icon.textContent = '☀️';
-            }
-        }
-
-        // Enhanced Form Submission with Enterprise Features
-        document.getElementById('email-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const sender = document.getElementById('sender').value;
-            const subject = document.getElementById('subject').value;
-            const body = document.getElementById('body').value;
-            
-            // Show enhanced loading
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('results').style.display = 'none';
-            document.getElementById('analyze-btn').disabled = true;
-            
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        sender: sender,
-                        subject: subject,
-                        body: body
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentAnalysisData = { sender, subject, body };
-                    
-                    setTimeout(() => {
-                        displayEnterpriseResults(data);
-                        showToast('🚀 Enterprise analysis complete!', 'success');
-                    }, 2000); // Dramatic loading effect
-                } else {
-                    showToast('Analysis failed: ' + data.error, 'error');
-                }
-                
-            } catch (error) {
-                showToast('Network error: ' + error.message, 'error');
-            } finally {
-                setTimeout(() => {
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('results').style.display = 'block';
-                    document.getElementById('analyze-btn').disabled = false;
-                }, 2000);
-            }
-        });
-
-        function displayEnterpriseResults(data) {
-            const threatDisplay = document.getElementById('threat-display');
-            const threatIcon = document.getElementById('threat-icon');
-            const threatScore = document.getElementById('threat-score');
-            const threatLabel = document.getElementById('threat-label');
-            const reasonsContainer = document.getElementById('reasons-container');
-            const reasonsList = document.getElementById('reasons-list');
-            
-            // Show enterprise stats
-            const enterpriseStats = document.getElementById('enterprise-stats');
-            const mlSection = document.getElementById('ml-section');
-            const urlChecks = document.getElementById('url-checks');
-            const feedbackSection = document.getElementById('feedback-section');
-            
-            enterpriseStats.style.display = 'grid';
-            mlSection.style.display = 'block';
-            urlChecks.style.display = 'block';
-            feedbackSection.style.display = 'block';
-            
-            // Update main display
-            threatIcon.textContent = data.risk_icon;
-            threatScore.textContent = data.danger_score + '%';
-            threatLabel.textContent = data.risk_level;
-            threatDisplay.style.borderColor = data.risk_color;
-            threatDisplay.style.background = `linear-gradient(135deg, ${data.risk_color}15, var(--primary-bg))`;
-            
-            // Update enterprise stats
-            document.getElementById('confidence-value').textContent = data.confidence + '%';
-            document.getElementById('ml-probability').textContent = data.ml_probability + '%';
-            document.getElementById('checks-value').textContent = data.total_checks;
-            document.getElementById('url-status').textContent = data.live_url_checked ? 'Live' : 'Static';
-            
-            // Update ML section
-            document.getElementById('ml-details').textContent = 
-                `${data.ml_confidence} - Phishing probability: ${data.ml_probability}%`;
-            
-            // Simulate URL check results
-            const urlResults = document.getElementById('url-results');
-            urlResults.innerHTML = `
-                <div class="url-status">
-                    <div class="status-indicator safe"></div>
-                    <span>SSL Certificate: Valid</span>
-                </div>
-                <div class="url-status">
-                    <div class="status-indicator ${data.danger_score > 70 ? 'danger' : 'safe'}"></div>
-                    <span>Domain Reputation: ${data.danger_score > 70 ? 'Suspicious' : 'Clean'}</span>
-                </div>
-                <div class="url-status">
-                    <div class="status-indicator checking"></div>
-                    <span>Live Response: Analyzed</span>
-                </div>
-            `;
-            
-            // Display categorized reasons
-            if (data.reasons && data.reasons.length > 0) {
-                reasonsList.innerHTML = '';
-                data.reasons.forEach((reason, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'reason-item';
-                    
-                    // Enhanced categorization
-                    if (reason.includes('CRITICAL') || reason.includes('EXTREME') || reason.includes('spoofing')) {
-                        div.classList.add('critical');
-                    } else if (reason.includes('Multiple') || reason.includes('Machine Learning') || reason.includes('Live URL')) {
-                        div.classList.add('high-risk');
-                    } else {
-                        div.classList.add('medium-risk');
-                    }
-                    
-                    div.textContent = reason;
-                    div.style.animationDelay = (index * 0.1) + 's';
-                    reasonsList.appendChild(div);
-                });
-                reasonsContainer.style.display = 'block';
-                document.getElementById('threat-indicators-title').textContent = 
-                    `${data.reasons.length} Enterprise Threat Indicators`;
-            } else {
-                reasonsContainer.style.display = 'none';
-            }
-        }
-
-        // Real-time Monitoring Functions
-        function toggleMonitoring() {
-            const button = document.getElementById('monitor-toggle');
-            const statusText = document.getElementById('monitor-status-text');
-            const statusDot = document.getElementById('monitor-dot');
-            
-            if (!monitoringActive) {
-                // Start monitoring
-                fetch('/start-monitoring', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ config: {} })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        monitoringActive = true;
-                        button.textContent = 'Stop Monitoring';
-                        button.style.background = 'var(--danger)';
-                        statusText.textContent = 'Monitoring Active';
-                        statusDot.style.background = 'var(--success)';
-                        
-                        // Start status updates
-                        startMonitoringUpdates();
-                        showToast('🛡️ Real-time monitoring started!', 'success');
-                    }
-                });
-            } else {
-                // Stop monitoring
-                fetch('/stop-monitoring', { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        monitoringActive = false;
-                        button.textContent = 'Start Monitoring';
-                        button.style.background = 'var(--accent-color)';
-                        statusText.textContent = 'Monitoring Stopped';
-                        statusDot.style.background = 'var(--warning)';
-                        showToast('🛑 Monitoring stopped', 'warning');
-                    }
-                });
-            }
-        }
-
-        function startMonitoringUpdates() {
-            const updateInterval = setInterval(() => {
-                if (!monitoringActive) {
-                    clearInterval(updateInterval);
-                    return;
-                }
-                
-                fetch('/monitoring-status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        const status = data.status;
-                        document.getElementById('emails-processed').textContent = status.emails_processed;
-                        document.getElementById('threats-blocked').textContent = status.alerts_count;
-                        
-                        // Update alerts
-                        const alertsDiv = document.getElementById('recent-alerts');
-                        if (status.recent_alerts.length > 0) {
-                            alertsDiv.innerHTML = status.recent_alerts.map(alert => 
-                                `<div class="alert-item">${alert}</div>`
-                            ).join('');
-                        }
-                    }
-                });
-            }, 5000); // Update every 5 seconds
-        }
-
-        // ML Feedback System
-        function provideFeedback(isCorrect) {
-            if (!currentAnalysisData) return;
-            
-            const isPhishing = !isCorrect; // If incorrect, it means we missed phishing or false positive
-            
-            fetch('/feedback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    subject: currentAnalysisData.subject,
-                    body: currentAnalysisData.body,
-                    is_phishing: isPhishing
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('🤖 Thank you! AI model updated with your feedback', 'ml');
-                    document.getElementById('feedback-section').style.display = 'none';
-                }
-            });
-        }
-
-        // Example Loading Functions
-        function loadAdvancedExample() {
-            document.getElementById('sender').value = 'payp4l-security@gmail.com';
-            document.getElementById('subject').value = 'URGENT! Account suspended - verify within 24 hours!';
-            document.getElementById('body').value = 'Your PayPal account has been suspended due to suspicious activity. Click here immediately: http://bit.ly/paypal-verify to confirm your password, social security number, and bank account details. You have 24 hours or your account will be permanently closed!';
-            showToast('⚡ Advanced phishing example loaded', 'warning');
-        }
-
-        function loadMLExample() {
-            document.getElementById('sender').value = 'winner@lottery-international.tk';
-            document.getElementById('subject').value = 'Congratulations! You won $50,000,000!!!';
-            document.getElementById('body').value = 'URGENT WINNER! You have won FIFTY MILLION DOLLARS in our international lottery! ACT NOW to claim your prize money! Send us your bank account details immediately! This offer expires in 24 hours! Click here: http://192.168.1.100/claim-prize';
-            showToast('🤖 ML training example loaded', 'ml');
-        }
-
-        function loadURLExample() {
-            document.getElementById('sender').value = 'security@account-verify.tk';
-            document.getElementById('subject').value = 'Security Alert: Verify Your Account';
-            document.getElementById('body').value = 'We detected unusual activity. Please verify your account by clicking these links: http://bit.ly/secure-verify and http://tinyurl.com/account-check. Update your password at http://192.168.1.50/login';
-            showToast('🔗 URL scanning example loaded', 'warning');
-        }
-
-        function clearForm() {
-            document.getElementById('email-form').reset();
-            currentAnalysisData = null;
-            
-            // Reset displays
-            document.getElementById('threat-icon').textContent = '🔍';
-            document.getElementById('threat-score').textContent = '-';
-            document.getElementById('threat-label').textContent = 'Ready for Enterprise Analysis';
-            document.getElementById('enterprise-stats').style.display = 'none';
-            document.getElementById('ml-section').style.display = 'none';
-            document.getElementById('url-checks').style.display = 'none';
-            document.getElementById('feedback-section').style.display = 'none';
-            document.getElementById('reasons-container').style.display = 'none';
-            
-            showToast('🔄 Form cleared - ready for new analysis', 'success');
-        }
-
-        function exportResults() {
-            if (!currentAnalysisData) {
-                showToast('❌ No analysis data to export', 'error');
-                return;
-            }
-            
-            const threatLevel = document.getElementById('threat-label').textContent;
-            const score = document.getElementById('threat-score').textContent;
-            const confidence = document.getElementById('confidence-value').textContent;
-            const mlProb = document.getElementById('ml-probability').textContent;
-            const reasons = Array.from(document.querySelectorAll('.reason-item')).map(item => item.textContent).join('\n');
-            
-            const report = `ENTERPRISE PHISHING ANALYSIS REPORT
-Generated: ${new Date().toLocaleString()}
-Analyzer: PacketWhisperer's Enterprise AI Phishing Detector
-
-EXECUTIVE SUMMARY:
-Threat Level: ${threatLevel}
-Danger Score: ${score}
-AI Confidence: ${confidence}
-ML Probability: ${mlProb}
-
-EMAIL ANALYZED:
-From: ${currentAnalysisData.sender}
-Subject: ${currentAnalysisData.subject}
-
-ENTERPRISE THREAT ANALYSIS:
-${reasons || 'No threats detected - email appears legitimate'}
-
-SECURITY TECHNOLOGIES USED:
-✅ Live URL reputation checking
-✅ Machine Learning threat detection
-✅ Advanced pattern recognition
-✅ Domain spoofing detection
-✅ SSL certificate validation
-✅ Real-time threat correlation
-
-Report generated by PacketWhisperer's Enterprise AI Phishing Detector
-Built for enterprise cybersecurity operations.`;
-            
-            const blob = new Blob([report], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `enterprise_phishing_analysis_${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            showToast('📄 Enterprise report exported!', 'success');
-        }
-
-        function showHelp() {
-            const help = `🚀 ENTERPRISE AI PHISHING DETECTOR
-
-🔍 ADVANCED CAPABILITIES:
-- Live URL reputation checking
-- Machine Learning threat detection
-- Real-time email monitoring
-- Advanced threat correlation
-- Domain spoofing detection
-- SSL certificate validation
-
-🤖 MACHINE LEARNING:
-Our AI learns from your feedback to improve detection accuracy.
-
-📡 REAL-TIME MONITORING:
-Monitor incoming emails and automatically block threats.
-
-🛡️ THREAT INTELLIGENCE:
-Correlates multiple threat vectors for comprehensive analysis.
-
-Built with ❤️ by PacketWhisperer
-Enterprise-grade cybersecurity for professionals.`;
-            
-            alert(help);
-        }
-
-        function showToast(message, type) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            
-            if (type === 'error') {
-                toast.classList.add('error');
-            } else if (type === 'warning') {
-                toast.classList.add('warning');
-            } else if (type === 'ml') {
-                toast.classList.add('ml');
-            }
-            
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            
-            setTimeout(() => toast.classList.add('show'), 100);
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => {
-                    if (document.body.contains(toast)) {
-                        document.body.removeChild(toast);
-                    }
-                }, 300);
-            }, 4000);
-        }
-
-        console.log("🚀 Enterprise AI Phishing Detector ready!");
-        console.log("🔗 Live URL checking enabled");
-        console.log("🤖 Machine Learning models loaded");
-        console.log("📡 Real-time monitoring available");
-    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
