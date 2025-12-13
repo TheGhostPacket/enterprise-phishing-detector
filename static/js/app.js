@@ -1,27 +1,14 @@
 // ============================================
-// DOM Elements
+// DOM Elements & State
 // ============================================
 const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
 const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingText = document.getElementById('loadingText');
 const themeToggle = document.getElementById('themeToggle');
 
-// Email elements
-const emailForm = document.getElementById('emailForm');
-const emailResults = document.getElementById('emailResults');
-
-// URL elements
-const urlForm = document.getElementById('urlForm');
-const quickCheckBtn = document.getElementById('quickCheckBtn');
-const urlResults = document.getElementById('urlResults');
-const quickResult = document.getElementById('quickResult');
-
-// Monitor elements
-const startMonitorBtn = document.getElementById('startMonitor');
-const stopMonitorBtn = document.getElementById('stopMonitor');
-
-// Store last analyzed email for feedback
 let lastAnalyzedEmail = null;
+let qrImageData = null;
 
 // ============================================
 // Tab Switching
@@ -29,682 +16,387 @@ let lastAnalyzedEmail = null;
 tabs.forEach(tab => {
     tab.addEventListener('click', () => {
         const targetTab = tab.dataset.tab;
-        
-        // Update tab buttons
         tabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        
-        // Update tab content
         tabContents.forEach(content => {
             content.classList.remove('active');
-            if (content.id === `${targetTab}-tab`) {
-                content.classList.add('active');
-            }
+            if (content.id === `${targetTab}-tab`) content.classList.add('active');
         });
+        if (targetTab === 'history') loadHistory();
+        if (targetTab === 'learn') loadLearningContent();
     });
 });
 
-// ============================================
 // Theme Toggle
-// ============================================
 themeToggle.addEventListener('click', () => {
     document.body.classList.toggle('light-theme');
-    themeToggle.textContent = document.body.classList.contains('light-theme') ? '🌙' : '☀️';
+    themeToggle.textContent = document.body.classList.contains('light-theme') ? '☀️' : '🌙';
 });
 
-// ============================================
 // Loading State
-// ============================================
-function showLoading(message = 'Analyzing...') {
-    loadingOverlay.querySelector('p').textContent = message;
-    loadingOverlay.classList.add('show');
-}
-
-function hideLoading() {
-    loadingOverlay.classList.remove('show');
-}
+function showLoading(msg = 'Analyzing...') { loadingText.textContent = msg; loadingOverlay.classList.add('show'); }
+function hideLoading() { loadingOverlay.classList.remove('show'); }
 
 // ============================================
 // Email Analysis
 // ============================================
-emailForm.addEventListener('submit', async (e) => {
+document.getElementById('emailForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
     const sender = document.getElementById('sender').value.trim();
     const subject = document.getElementById('subject').value.trim();
     const body = document.getElementById('body').value.trim();
-    
-    if (!sender || !subject) {
-        alert('Please provide sender and subject');
-        return;
-    }
+    if (!sender || !subject) { alert('Please provide sender and subject'); return; }
     
     showLoading('Analyzing email...');
-    
     try {
-        const response = await fetch('/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sender, subject, body })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            displayEmailResults(data);
-            lastAnalyzedEmail = { subject, body };
-        } else {
-            alert('Error: ' + data.error);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to analyze email. Please try again.');
-    } finally {
-        hideLoading();
-    }
+        const res = await fetch('/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender, subject, body }) });
+        const data = await res.json();
+        if (data.success) { window.lastEmailAnalysis = data; lastAnalyzedEmail = { subject, body }; displayEmailResults(data); }
+        else alert('Error: ' + data.error);
+    } catch (e) { alert('Failed to analyze email'); }
+    finally { hideLoading(); }
 });
 
 function displayEmailResults(data) {
-    emailResults.style.display = 'block';
-    
-    // Header
-    const header = document.getElementById('emailResultsHeader');
-    header.style.borderLeft = `5px solid ${data.risk_color}`;
-    
+    const r = document.getElementById('emailResults'); r.style.display = 'block';
+    document.getElementById('emailResultsHeader').style.borderLeft = `5px solid ${data.risk_color}`;
     document.getElementById('emailRiskIcon').textContent = data.risk_icon;
     document.getElementById('emailRiskLevel').textContent = data.risk_level;
     document.getElementById('emailRiskLevel').style.color = data.risk_color;
     document.getElementById('emailScore').textContent = data.danger_score;
     document.getElementById('emailScore').style.color = data.risk_color;
-    
-    // Advice
     document.getElementById('emailAdvice').textContent = data.advice;
     document.getElementById('emailAdvice').style.borderColor = data.risk_color;
     
-    // Findings
-    const findingsList = document.getElementById('emailFindings');
-    findingsList.innerHTML = '';
+    const fl = document.getElementById('emailFindings'); fl.innerHTML = '';
+    if (data.reasons?.length) data.reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; fl.appendChild(li); });
+    else fl.innerHTML = '<li style="color: var(--success);">✅ No suspicious indicators</li>';
     
-    if (data.reasons && data.reasons.length > 0) {
-        data.reasons.forEach(reason => {
-            const li = document.createElement('li');
-            li.textContent = reason;
-            findingsList.appendChild(li);
-        });
-    } else {
-        findingsList.innerHTML = '<li style="color: var(--success);">✅ No suspicious indicators found</li>';
-    }
+    const us = document.getElementById('emailUrlsSection'), ul = document.getElementById('emailUrls');
+    if (data.extracted_urls?.length) {
+        us.style.display = 'block'; ul.innerHTML = '';
+        data.extracted_urls.forEach(u => { const li = document.createElement('li'); li.innerHTML = `<span class="url-text">${truncate(u,50)}</span><button class="btn btn-sm btn-secondary" onclick="analyzeUrlFromEmail('${esc(u)}')">Analyze</button>`; ul.appendChild(li); });
+    } else us.style.display = 'none';
     
-    // Extracted URLs
-    const urlsSection = document.getElementById('emailUrlsSection');
-    const urlsList = document.getElementById('emailUrls');
-    
-    if (data.extracted_urls && data.extracted_urls.length > 0) {
-        urlsSection.style.display = 'block';
-        urlsList.innerHTML = '';
-        
-        data.extracted_urls.forEach(url => {
-            const li = document.createElement('li');
-            li.innerHTML = `
-                <span class="url-text">${truncateUrl(url, 50)}</span>
-                <button class="btn btn-sm btn-secondary" onclick="analyzeUrlFromEmail('${escapeHtml(url)}')">
-                    Analyze
-                </button>
-            `;
-            urlsList.appendChild(li);
-        });
-    } else {
-        urlsSection.style.display = 'none';
-    }
-    
-    // ML results
     document.getElementById('emailMlProb').textContent = `${data.ml_probability}% (${data.ml_confidence})`;
-    
-    // Scroll to results
-    emailResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    r.scrollIntoView({ behavior: 'smooth' });
 }
 
 // ============================================
 // URL Analysis
 // ============================================
-urlForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await analyzeUrl(false);
-});
+document.getElementById('urlForm').addEventListener('submit', async (e) => { e.preventDefault(); await analyzeUrl(false); });
+document.getElementById('quickCheckBtn').addEventListener('click', async () => { await analyzeUrl(true); });
 
-quickCheckBtn.addEventListener('click', async () => {
-    await analyzeUrl(true);
-});
-
-async function analyzeUrl(quickCheck = false) {
+async function analyzeUrl(quick = false) {
     const url = document.getElementById('urlInput').value.trim();
+    if (!url) { alert('Please enter a URL'); return; }
+    showLoading(quick ? 'Quick checking...' : 'Deep analysis...');
+    document.getElementById('quickResult').style.display = 'none';
+    document.getElementById('urlResults').style.display = 'none';
     
-    if (!url) {
-        alert('Please enter a URL to analyze');
-        return;
-    }
-    
-    if (quickCheck) {
-        showLoading('Quick checking...');
-        quickResult.style.display = 'block';
-        urlResults.style.display = 'none';
-        
-        try {
-            const response = await fetch('/quick-url-check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                displayQuickResult(data);
-            } else {
-                alert('Error: ' + data.error);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to check URL. Please try again.');
-        } finally {
-            hideLoading();
-        }
-    } else {
-        showLoading('Performing deep analysis...');
-        quickResult.style.display = 'none';
-        
-        try {
-            const response = await fetch('/analyze-url', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                displayUrlResults(data);
-            } else {
-                alert('Error: ' + data.error);
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to analyze URL. Please try again.');
-        } finally {
-            hideLoading();
-        }
-    }
+    try {
+        const res = await fetch(quick ? '/quick-url-check' : '/analyze-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        const data = await res.json();
+        if (data.success) { if (quick) displayQuickResult(data); else { window.lastUrlAnalysis = data; displayUrlResults(data); } }
+        else alert('Error: ' + data.error);
+    } catch (e) { alert('Failed to analyze URL'); }
+    finally { hideLoading(); }
 }
 
-function displayQuickResult(data) {
-    const verdict = document.getElementById('quickVerdict');
-    const details = document.getElementById('quickDetails');
-    
-    verdict.textContent = data.verdict;
-    verdict.style.color = data.color;
-    
-    if (data.findings && data.findings.length > 0) {
-        details.innerHTML = data.findings.map(f => `⚠️ ${f}`).join('<br>');
-    } else {
-        details.innerHTML = '✅ No immediate threats detected';
-    }
-    
-    details.innerHTML += `<br><small style="color: var(--text-muted);">${data.note}</small>`;
+function displayQuickResult(d) {
+    const r = document.getElementById('quickResult'); r.style.display = 'block';
+    document.getElementById('quickVerdict').textContent = d.verdict;
+    document.getElementById('quickVerdict').style.color = d.color;
+    document.getElementById('quickDetails').innerHTML = (d.findings.length ? d.findings.map(f => `⚠️ ${f}`).join('<br>') : '✅ No threats') + `<br><small style="color:var(--text-muted)">${d.note}</small>`;
 }
 
-function displayUrlResults(data) {
-    urlResults.style.display = 'block';
+function displayUrlResults(d) {
+    const r = document.getElementById('urlResults'); r.style.display = 'block';
+    document.getElementById('urlResultsHeader').style.borderLeft = `5px solid ${d.risk_color}`;
+    document.getElementById('urlRiskIcon').textContent = d.risk_icon;
+    document.getElementById('urlRiskLevel').textContent = d.risk_level;
+    document.getElementById('urlRiskLevel').style.color = d.risk_color;
+    document.getElementById('urlScore').textContent = d.danger_score;
+    document.getElementById('urlScore').style.color = d.risk_color;
+    document.getElementById('urlSummary').textContent = d.summary;
+    document.getElementById('urlSummary').style.borderColor = d.risk_color;
     
-    // Header
-    const header = document.getElementById('urlResultsHeader');
-    header.style.borderLeft = `5px solid ${data.risk_color}`;
+    displayInfo('domainInfo', d.domain_info, ['domain','registrar','creation_date','domain_age_days','expiration_date','registrant_country']);
+    displayInfo('sslInfo', d.ssl_info, ['issuer','valid_until','days_until_expiry'], d.ssl_info?.has_ssl);
+    displayInfo('redirectInfo', d.redirect_info, ['redirect_count','uses_shortener','crosses_domains','final_url']);
+    displayInfo('dnsInfo', d.dns_info, ['a_records','mx_records','ns_records']);
+    displayInfo('contentInfo', d.content_info, ['page_title','has_login_form','has_password_field','requests_sensitive_info']);
     
-    document.getElementById('urlRiskIcon').textContent = data.risk_icon;
-    document.getElementById('urlRiskLevel').textContent = data.risk_level;
-    document.getElementById('urlRiskLevel').style.color = data.risk_color;
-    document.getElementById('urlScore').textContent = data.danger_score;
-    document.getElementById('urlScore').style.color = data.risk_color;
+    const fl = document.getElementById('urlFindings'); fl.innerHTML = '';
+    if (d.reasons?.length) d.reasons.forEach(r => { const li = document.createElement('li'); li.textContent = r; fl.appendChild(li); });
+    else fl.innerHTML = '<li style="color: var(--success);">✅ No risk factors</li>';
     
-    // Summary
-    document.getElementById('urlSummary').textContent = data.summary;
-    document.getElementById('urlSummary').style.borderColor = data.risk_color;
-    
-    // Domain Info
-    displayDomainInfo(data.domain_info);
-    
-    // SSL Info
-    displaySslInfo(data.ssl_info);
-    
-    // Redirect Info
-    displayRedirectInfo(data.redirect_info);
-    
-    // DNS Info
-    displayDnsInfo(data.dns_info);
-    
-    // Content Info
-    displayContentInfo(data.content_info);
-    
-    // All Risk Factors
-    const findingsList = document.getElementById('urlFindings');
-    findingsList.innerHTML = '';
-    
-    if (data.reasons && data.reasons.length > 0) {
-        data.reasons.forEach(reason => {
-            const li = document.createElement('li');
-            li.textContent = reason;
-            findingsList.appendChild(li);
-        });
-    } else {
-        findingsList.innerHTML = '<li style="color: var(--success);">✅ No risk factors identified</li>';
-    }
-    
-    // Setup collapsible sections
     setupCollapsibles();
-    
-    // Scroll to results
-    urlResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    r.scrollIntoView({ behavior: 'smooth' });
 }
 
-function displayDomainInfo(info) {
-    const container = document.getElementById('domainInfo');
-    
-    if (!info || !info.success) {
-        container.innerHTML = '<p style="color: var(--text-muted);">Domain information unavailable</p>';
-        return;
-    }
-    
-    container.innerHTML = `
-        <div class="info-grid">
-            <div class="info-item">
-                <div class="info-label">Domain</div>
-                <div class="info-value">${info.domain || 'N/A'}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Registrar</div>
-                <div class="info-value">${info.registrar || 'N/A'}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Created</div>
-                <div class="info-value">${info.creation_date || 'N/A'}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Domain Age</div>
-                <div class="info-value">${info.domain_age_days ? info.domain_age_days + ' days' : 'N/A'}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Expires</div>
-                <div class="info-value">${info.expiration_date || 'N/A'}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Country</div>
-                <div class="info-value">${info.registrant_country || 'N/A'}</div>
-            </div>
-        </div>
-        ${info.name_servers && info.name_servers.length > 0 ? `
-            <div style="margin-top: 12px;">
-                <div class="info-label">Name Servers</div>
-                <div class="info-value">${info.name_servers.join(', ')}</div>
-            </div>
-        ` : ''}
-    `;
+function displayInfo(id, info, fields, valid = true) {
+    const c = document.getElementById(id);
+    if (!info?.success && valid !== false) { c.innerHTML = '<p style="color:var(--text-muted)">Unavailable</p>'; return; }
+    c.innerHTML = '<div class="info-grid">' + fields.map(f => {
+        let v = info[f]; if (Array.isArray(v)) v = v.join(', ') || 'None';
+        if (typeof v === 'boolean') v = v ? 'Yes ⚠️' : 'No';
+        return `<div class="info-item"><div class="info-label">${f.replace(/_/g,' ')}</div><div class="info-value">${v || 'N/A'}</div></div>`;
+    }).join('') + '</div>';
 }
 
-function displaySslInfo(info) {
-    const container = document.getElementById('sslInfo');
-    
-    if (!info) {
-        container.innerHTML = '<p style="color: var(--text-muted);">SSL information unavailable</p>';
-        return;
-    }
-    
-    const hasSSL = info.has_ssl;
-    const statusIcon = hasSSL ? '✅' : '❌';
-    const statusText = hasSSL ? 'Valid SSL Certificate' : 'No Valid SSL Certificate';
-    
-    container.innerHTML = `
-        <div style="margin-bottom: 15px;">
-            <span style="font-size: 1.2rem;">${statusIcon}</span>
-            <strong>${statusText}</strong>
-        </div>
-        ${hasSSL ? `
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">Issuer</div>
-                    <div class="info-value">${info.issuer || 'N/A'}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Organization</div>
-                    <div class="info-value">${info.issuer_org || 'N/A'}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Valid From</div>
-                    <div class="info-value">${info.valid_from || 'N/A'}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Valid Until</div>
-                    <div class="info-value">${info.valid_until || 'N/A'}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Days Until Expiry</div>
-                    <div class="info-value" style="color: ${info.days_until_expiry < 30 ? 'var(--danger)' : 'var(--success)'}">
-                        ${info.days_until_expiry || 'N/A'}
-                    </div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Subject</div>
-                    <div class="info-value">${info.subject || 'N/A'}</div>
-                </div>
-            </div>
-        ` : `
-            <p style="color: var(--danger);">⚠️ This site does not have a valid SSL certificate, which is a security concern.</p>
-        `}
-    `;
-}
-
-function displayRedirectInfo(info) {
-    const container = document.getElementById('redirectInfo');
-    
-    if (!info || !info.success) {
-        container.innerHTML = '<p style="color: var(--text-muted);">Redirect information unavailable</p>';
-        return;
-    }
-    
-    const redirectCount = info.redirect_count || 0;
-    
-    container.innerHTML = `
-        <div class="info-grid">
-            <div class="info-item">
-                <div class="info-label">Redirect Count</div>
-                <div class="info-value" style="color: ${redirectCount >= 3 ? 'var(--warning)' : 'var(--success)'}">
-                    ${redirectCount}
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Uses Shortener</div>
-                <div class="info-value" style="color: ${info.uses_shortener ? 'var(--danger)' : 'var(--success)'}">
-                    ${info.uses_shortener ? 'Yes ⚠️' : 'No'}
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Crosses Domains</div>
-                <div class="info-value" style="color: ${info.crosses_domains ? 'var(--warning)' : 'var(--success)'}">
-                    ${info.crosses_domains ? 'Yes ⚠️' : 'No'}
-                </div>
-            </div>
-        </div>
-        ${info.chain && info.chain.length > 1 ? `
-            <div style="margin-top: 15px;">
-                <div class="info-label">Redirect Chain</div>
-                <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; margin-top: 8px;">
-                    ${info.chain.map((item, i) => `
-                        <div style="padding: 8px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px;">
-                            ${i + 1}. ${truncateUrl(item.url, 60)}
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        ` : ''}
-        <div style="margin-top: 15px;">
-            <div class="info-label">Final URL</div>
-            <div class="info-value" style="word-break: break-all;">${info.final_url || 'N/A'}</div>
-        </div>
-    `;
-}
-
-function displayDnsInfo(info) {
-    const container = document.getElementById('dnsInfo');
-    
-    if (!info || !info.success) {
-        container.innerHTML = '<p style="color: var(--text-muted);">DNS information unavailable</p>';
-        return;
-    }
-    
-    container.innerHTML = `
-        <div class="info-grid">
-            <div class="info-item">
-                <div class="info-label">A Records</div>
-                <div class="info-value">${info.a_records && info.a_records.length > 0 ? info.a_records.join(', ') : 'None'}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">MX Records</div>
-                <div class="info-value">${info.mx_records && info.mx_records.length > 0 ? info.mx_records.join(', ') : 'None'}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">NS Records</div>
-                <div class="info-value">${info.ns_records && info.ns_records.length > 0 ? info.ns_records.join(', ') : 'None'}</div>
-            </div>
-        </div>
-        ${info.txt_records && info.txt_records.length > 0 ? `
-            <div style="margin-top: 15px;">
-                <div class="info-label">TXT Records</div>
-                <div style="font-size: 0.8rem; margin-top: 8px;">
-                    ${info.txt_records.map(txt => `
-                        <div style="padding: 8px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 4px; word-break: break-all;">
-                            ${escapeHtml(txt.substring(0, 100))}${txt.length > 100 ? '...' : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        ` : ''}
-    `;
-}
-
-function displayContentInfo(info) {
-    const container = document.getElementById('contentInfo');
-    
-    if (!info || !info.success) {
-        container.innerHTML = '<p style="color: var(--text-muted);">Content analysis unavailable (site may be unreachable)</p>';
-        return;
-    }
-    
-    container.innerHTML = `
-        ${info.page_title ? `
-            <div style="margin-bottom: 15px;">
-                <div class="info-label">Page Title</div>
-                <div class="info-value">${escapeHtml(info.page_title)}</div>
-            </div>
-        ` : ''}
-        <div class="info-grid">
-            <div class="info-item">
-                <div class="info-label">Login Form</div>
-                <div class="info-value" style="color: ${info.has_login_form ? 'var(--warning)' : 'var(--success)'}">
-                    ${info.has_login_form ? 'Yes ⚠️' : 'No'}
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Password Field</div>
-                <div class="info-value" style="color: ${info.has_password_field ? 'var(--warning)' : 'var(--success)'}">
-                    ${info.has_password_field ? 'Yes ⚠️' : 'No'}
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">Requests Sensitive Info</div>
-                <div class="info-value" style="color: ${info.requests_sensitive_info ? 'var(--danger)' : 'var(--success)'}">
-                    ${info.requests_sensitive_info ? 'Yes 🚨' : 'No'}
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">External Form Action</div>
-                <div class="info-value" style="color: ${info.external_form_action ? 'var(--danger)' : 'var(--success)'}">
-                    ${info.external_form_action ? 'Yes 🚨' : 'No'}
-                </div>
-            </div>
-        </div>
-        ${info.suspicious_elements && info.suspicious_elements.length > 0 ? `
-            <div style="margin-top: 15px;">
-                <div class="info-label">Suspicious Elements</div>
-                <ul style="margin-top: 8px; padding-left: 20px;">
-                    ${info.suspicious_elements.map(el => `<li>${escapeHtml(el)}</li>`).join('')}
-                </ul>
-            </div>
-        ` : ''}
-    `;
-}
-
-// ============================================
-// Analyze URL from Email
-// ============================================
 function analyzeUrlFromEmail(url) {
-    // Switch to URL tab
     document.querySelector('[data-tab="url"]').click();
-    
-    // Fill in the URL
     document.getElementById('urlInput').value = url;
-    
-    // Trigger analysis
-    setTimeout(() => {
-        analyzeUrl(false);
-    }, 300);
+    setTimeout(() => analyzeUrl(false), 300);
 }
 
 // ============================================
-// Collapsible Sections
+// Bulk URL Scanner
+// ============================================
+async function bulkScanUrls() {
+    const urls = document.getElementById('bulkUrls').value.split('\n').filter(u => u.trim());
+    if (!urls.length) { alert('Enter URLs'); return; }
+    if (urls.length > 10) { alert('Max 10 URLs'); return; }
+    
+    showLoading(`Scanning ${urls.length} URLs...`);
+    try {
+        const res = await fetch('/bulk-url-check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls }) });
+        const data = await res.json();
+        if (data.success) {
+            const c = document.getElementById('bulkResults'); c.style.display = 'block';
+            c.innerHTML = data.results.map(r => {
+                const col = r.risk_score >= 60 ? 'var(--danger)' : r.risk_score >= 30 ? 'var(--warning)' : 'var(--success)';
+                return `<div class="bulk-item"><div class="bulk-url">${truncate(r.url,50)}</div><span class="bulk-risk" style="background:${col};color:white">${r.risk_level||'Error'}</span></div>`;
+            }).join('');
+        }
+    } catch (e) { alert('Failed'); }
+    finally { hideLoading(); }
+}
+
+// URL Expander
+async function expandUrl() {
+    const url = document.getElementById('shortUrl').value.trim();
+    if (!url) { alert('Enter URL'); return; }
+    showLoading('Expanding...');
+    try {
+        const res = await fetch('/expand-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        const d = await res.json();
+        if (d.success) {
+            const r = document.getElementById('expandResult'); r.style.display = 'block';
+            r.innerHTML = `<strong>Original:</strong> ${d.original_url}<br><strong>Final:</strong> ${d.final_url}<br><strong>Redirects:</strong> ${d.redirect_count}`;
+        }
+    } catch (e) { alert('Failed'); }
+    finally { hideLoading(); }
+}
+
+// ============================================
+// QR Scanner
+// ============================================
+const qrArea = document.getElementById('qrUploadArea'), qrInput = document.getElementById('qrFileInput');
+qrArea.addEventListener('click', () => qrInput.click());
+qrArea.addEventListener('dragover', e => { e.preventDefault(); qrArea.classList.add('dragover'); });
+qrArea.addEventListener('dragleave', () => qrArea.classList.remove('dragover'));
+qrArea.addEventListener('drop', e => { e.preventDefault(); qrArea.classList.remove('dragover'); if (e.dataTransfer.files.length) handleQrFile(e.dataTransfer.files[0]); });
+qrInput.addEventListener('change', e => { if (e.target.files.length) handleQrFile(e.target.files[0]); });
+
+function handleQrFile(file) {
+    if (!file.type.startsWith('image/')) { alert('Upload image'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+        qrImageData = e.target.result;
+        document.getElementById('qrPreviewImg').src = qrImageData;
+        document.getElementById('qrPreview').style.display = 'block';
+        qrArea.style.display = 'none';
+        document.getElementById('scanQrBtn').disabled = false;
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearQrPreview() {
+    qrImageData = null;
+    document.getElementById('qrPreview').style.display = 'none';
+    qrArea.style.display = 'block';
+    document.getElementById('scanQrBtn').disabled = true;
+    document.getElementById('qrResults').style.display = 'none';
+}
+
+async function scanQrCode() {
+    if (!qrImageData) { alert('Upload QR image'); return; }
+    showLoading('Scanning QR...');
+    try {
+        const res = await fetch('/scan-qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: qrImageData }) });
+        const d = await res.json();
+        document.getElementById('qrResults').style.display = 'block';
+        document.getElementById('qrResultsBody').innerHTML = d.success && d.results ? d.results.map(r => `<div style="padding:15px;background:var(--bg-input);border-radius:8px;margin-bottom:15px"><div style="font-family:monospace;word-break:break-all">${esc(r.data)}</div>${r.is_url ? `<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="analyzeUrlFromEmail('${esc(r.data)}')">Analyze URL</button>` : ''}</div>`).join('') : `<p style="color:var(--danger)">❌ ${d.error || 'No QR found'}</p>`;
+    } catch (e) { alert('Failed'); }
+    finally { hideLoading(); }
+}
+
+// ============================================
+// Header Analyzer
+// ============================================
+async function analyzeHeaders() {
+    const headers = document.getElementById('headerInput').value.trim();
+    if (!headers) { alert('Paste headers'); return; }
+    showLoading('Analyzing headers...');
+    try {
+        const res = await fetch('/analyze-headers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ headers }) });
+        const d = await res.json();
+        document.getElementById('headerResults').style.display = 'block';
+        if (d.success) {
+            const a = d.authentication;
+            document.getElementById('headerResultsBody').innerHTML = `
+                <h3>📧 Basic Info</h3>
+                <div class="info-grid">
+                    <div class="info-item"><div class="info-label">From</div><div class="info-value">${esc(d.basic_info.from||'N/A')}</div></div>
+                    <div class="info-item"><div class="info-label">Subject</div><div class="info-value">${esc(d.basic_info.subject||'N/A')}</div></div>
+                </div>
+                <h3 style="margin-top:20px">🔐 Authentication</h3>
+                <div class="info-grid">
+                    <div class="info-item"><div class="info-label">SPF</div><div class="info-value" style="color:${authCol(a.spf.status)}">${a.spf.status.toUpperCase()}</div></div>
+                    <div class="info-item"><div class="info-label">DKIM</div><div class="info-value" style="color:${authCol(a.dkim.status)}">${a.dkim.status.toUpperCase()}</div></div>
+                    <div class="info-item"><div class="info-label">DMARC</div><div class="info-value" style="color:${authCol(a.dmarc.status)}">${a.dmarc.status.toUpperCase()}</div></div>
+                    <div class="info-item"><div class="info-label">Risk</div><div class="info-value">${d.risk_level.toUpperCase()} (${d.risk_score})</div></div>
+                </div>
+                ${d.security_analysis.length ? `<h3 style="margin-top:20px">⚠️ Findings</h3><ul class="findings-list">${d.security_analysis.map(f=>`<li><strong>${f.severity}:</strong> ${f.finding}</li>`).join('')}</ul>` : ''}
+            `;
+        } else document.getElementById('headerResultsBody').innerHTML = `<p style="color:var(--danger)">❌ ${d.error}</p>`;
+    } catch (e) { alert('Failed'); }
+    finally { hideLoading(); }
+}
+
+function authCol(s) { return s === 'pass' ? 'var(--success)' : s === 'fail' ? 'var(--danger)' : 'var(--warning)'; }
+
+// ============================================
+// History
+// ============================================
+async function loadHistory(type = null) {
+    try {
+        const res = await fetch(type ? `/history?type=${type}` : '/history');
+        const d = await res.json();
+        if (d.success) { displayStats(d.stats); displayHistory(d.scans); }
+    } catch (e) { console.error(e); }
+}
+
+function displayStats(s) {
+    document.getElementById('totalScans').textContent = s.total_scans || 0;
+    document.getElementById('emailScans').textContent = s.by_type?.email || 0;
+    document.getElementById('urlScans').textContent = s.by_type?.url || 0;
+    document.getElementById('highRiskCount').textContent = s.high_risk_count || 0;
+}
+
+function displayHistory(scans) {
+    const c = document.getElementById('historyList');
+    if (!scans?.length) { c.innerHTML = '<p class="empty-state">No scans yet</p>'; return; }
+    c.innerHTML = scans.map(s => {
+        const col = s.risk_level.toLowerCase().includes('high') ? 'var(--danger)' : s.risk_level.toLowerCase().includes('medium') ? 'var(--warning)' : 'var(--success)';
+        return `<div class="history-item"><div class="history-info"><div class="history-type">${s.type}</div><div class="history-target">${truncate(s.target,60)}</div><div class="history-time">${new Date(s.timestamp).toLocaleString()}</div></div><span class="history-risk" style="background:${col};color:white">${s.risk_score}</span></div>`;
+    }).join('');
+}
+
+function filterHistory(type, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    loadHistory(type === 'all' ? null : type);
+}
+
+async function searchHistory() {
+    const q = document.getElementById('historySearch').value.trim();
+    if (!q) { loadHistory(); return; }
+    const res = await fetch(`/history/search?q=${encodeURIComponent(q)}`);
+    const d = await res.json();
+    if (d.success) displayHistory(d.results);
+}
+
+async function clearHistory() {
+    if (!confirm('Clear all history?')) return;
+    await fetch('/history/clear', { method: 'POST' });
+    loadHistory();
+}
+
+// ============================================
+// Threat Feed
+// ============================================
+async function loadThreatFeed() {
+    showLoading('Loading threats...');
+    try {
+        const res = await fetch('/threat-feed');
+        const d = await res.json();
+        document.getElementById('threatFeed').innerHTML = d.success && d.feed.items.length ? 
+            `<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:15px">Sources: ${d.feed.sources.join(', ')}</p>` +
+            d.feed.items.slice(0,20).map(i => `<div class="threat-item"><div class="threat-url">${truncate(i.url,60)}</div><div class="threat-meta">${i.source} • ${i.threat_type||'phishing'}</div></div>`).join('') :
+            '<p class="empty-state">No threats</p>';
+    } catch (e) { document.getElementById('threatFeed').innerHTML = '<p class="empty-state">Failed to load</p>'; }
+    finally { hideLoading(); }
+}
+
+// ============================================
+// Learning Center
+// ============================================
+async function loadLearningContent() {
+    try {
+        const [tips, types, actions] = await Promise.all([
+            fetch('/learning/tips').then(r => r.json()),
+            fetch('/learning/types').then(r => r.json()),
+            fetch('/learning/actions').then(r => r.json())
+        ]);
+        
+        if (tips.success) document.getElementById('phishingTips').innerHTML = tips.tips.map(t => `<div class="tip-card"><h4>${t.title}</h4><p>${t.description}</p><div class="tip-example">${t.example}</div></div>`).join('');
+        if (types.success) document.getElementById('phishingTypes').innerHTML = types.types.map(t => `<div class="type-card"><h4>${t.type}</h4><p>${t.description}</p><p style="font-size:0.8rem;color:var(--text-muted)">Targets: ${t.targets}</p></div>`).join('');
+        if (actions.success) {
+            const a = actions.actions;
+            document.getElementById('whatToDo').innerHTML = `
+                <div class="action-card"><h4>📧 Received Suspicious Email</h4><ul>${a.if_received.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+                <div class="action-card"><h4>🖱️ Clicked a Link</h4><ul>${a.if_clicked.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+                <div class="action-card"><h4>🔐 Entered Information</h4><ul>${a.if_entered_info.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+            `;
+        }
+    } catch (e) { console.error(e); }
+}
+
+// ============================================
+// PDF Reports
+// ============================================
+async function generateEmailReport() {
+    if (!window.lastEmailAnalysis) { alert('No analysis'); return; }
+    showLoading('Generating PDF...');
+    try {
+        const res = await fetch('/generate-report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'email', data: window.lastEmailAnalysis }) });
+        if (res.ok) { const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `email_report_${Date.now()}.pdf`; a.click(); }
+        else alert('Failed - PDF may not be available');
+    } catch (e) { alert('Failed'); }
+    finally { hideLoading(); }
+}
+
+async function generateUrlReport() {
+    if (!window.lastUrlAnalysis) { alert('No analysis'); return; }
+    showLoading('Generating PDF...');
+    try {
+        const res = await fetch('/generate-report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', data: window.lastUrlAnalysis }) });
+        if (res.ok) { const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `url_report_${Date.now()}.pdf`; a.click(); }
+        else alert('Failed');
+    } catch (e) { alert('Failed'); }
+    finally { hideLoading(); }
+}
+
+// Feedback
+async function submitFeedback(isPhishing) {
+    if (!lastAnalyzedEmail) { alert('No email'); return; }
+    await fetch('/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: lastAnalyzedEmail.subject, body: lastAnalyzedEmail.body, is_phishing: isPhishing }) });
+    alert('Thank you!');
+}
+
+// ============================================
+// Utilities
 // ============================================
 function setupCollapsibles() {
-    document.querySelectorAll('.collapsible .section-toggle').forEach(toggle => {
-        // Remove existing listeners
-        toggle.replaceWith(toggle.cloneNode(true));
-    });
-    
-    document.querySelectorAll('.collapsible .section-toggle').forEach(toggle => {
-        toggle.addEventListener('click', function() {
-            this.parentElement.classList.toggle('open');
-        });
-    });
+    document.querySelectorAll('.collapsible .section-toggle').forEach(t => { t.onclick = function() { this.parentElement.classList.toggle('open'); }; });
 }
 
-// ============================================
-// Email Monitoring
-// ============================================
-let monitoringInterval = null;
+function truncate(t, n) { return t.length > n ? t.substring(0, n-3) + '...' : t; }
+function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
-startMonitorBtn.addEventListener('click', async () => {
-    try {
-        const response = await fetch('/start-monitoring', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ config: {} })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            startMonitorBtn.disabled = true;
-            stopMonitorBtn.disabled = false;
-            
-            document.querySelector('.status-indicator').classList.add('online');
-            document.querySelector('.monitor-status span').innerHTML = 'Monitoring: <strong>Active</strong>';
-            
-            // Start polling for status
-            monitoringInterval = setInterval(updateMonitoringStatus, 5000);
-        }
-    } catch (error) {
-        console.error('Error starting monitor:', error);
-        alert('Failed to start monitoring');
-    }
-});
-
-stopMonitorBtn.addEventListener('click', async () => {
-    try {
-        const response = await fetch('/stop-monitoring', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            startMonitorBtn.disabled = false;
-            stopMonitorBtn.disabled = true;
-            
-            document.querySelector('.status-indicator').classList.remove('online');
-            document.querySelector('.monitor-status span').innerHTML = 'Monitoring: <strong>Inactive</strong>';
-            
-            if (monitoringInterval) {
-                clearInterval(monitoringInterval);
-                monitoringInterval = null;
-            }
-        }
-    } catch (error) {
-        console.error('Error stopping monitor:', error);
-    }
-});
-
-async function updateMonitoringStatus() {
-    try {
-        const response = await fetch('/monitoring-status');
-        const data = await response.json();
-        
-        if (data.success && data.status) {
-            document.getElementById('emailsProcessed').textContent = data.status.emails_processed;
-            document.getElementById('alertsCount').textContent = data.status.alerts_count;
-            
-            const alertsList = document.getElementById('alertsList');
-            alertsList.innerHTML = '';
-            
-            if (data.status.recent_alerts && data.status.recent_alerts.length > 0) {
-                data.status.recent_alerts.forEach(alert => {
-                    const li = document.createElement('li');
-                    li.textContent = alert;
-                    alertsList.appendChild(li);
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Error fetching status:', error);
-    }
-}
-
-// ============================================
-// Feedback
-// ============================================
-async function submitFeedback(isPhishing) {
-    if (!lastAnalyzedEmail) {
-        alert('No email to provide feedback for');
-        return;
-    }
-    
-    try {
-        const response = await fetch('/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                subject: lastAnalyzedEmail.subject,
-                body: lastAnalyzedEmail.body,
-                is_phishing: isPhishing
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('Thank you for your feedback! The ML model has been updated.');
-        }
-    } catch (error) {
-        console.error('Error submitting feedback:', error);
-    }
-}
-
-// ============================================
-// Utility Functions
-// ============================================
-function truncateUrl(url, maxLength) {
-    if (url.length <= maxLength) return url;
-    return url.substring(0, maxLength - 3) + '...';
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// ============================================
-// Initialize
-// ============================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Setup collapsibles on page load
-    setupCollapsibles();
-    
-    console.log('🛡️ Phishing Intelligence Platform loaded');
-});
+// Init
+document.addEventListener('DOMContentLoaded', () => { setupCollapsibles(); console.log('🛡️ Phishing Intelligence Platform v5.0'); });
