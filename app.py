@@ -17,9 +17,11 @@ except: REPORTS_ENABLED = False
 
 try:
     from qr_scanner import get_qr_scanner
-    QR_ENABLED = True
     qr_scanner = get_qr_scanner()
-except: QR_ENABLED = False
+    QR_ENABLED = True
+except Exception as e:
+    print(f"QR Scanner disabled: {e}")
+    QR_ENABLED = False
 
 app = Flask(__name__)
 
