@@ -10,6 +10,16 @@ from url_analyzer import analyze_url_comprehensive
 from header_analyzer import EmailHeaderAnalyzer
 from history_feeds import ScanHistory, ThreatFeed, LearningCenter
 
+# API Integrations
+try:
+    from api_integrations import get_threat_intelligence, VirusTotalAPI, GoogleSafeBrowsingAPI, AbuseIPDBAPI
+    threat_intel = get_threat_intelligence()
+    API_INTEGRATIONS_ENABLED = True
+except Exception as e:
+    print(f"API Integrations disabled: {e}")
+    API_INTEGRATIONS_ENABLED = False
+    threat_intel = None
+
 try:
     from report_generator import PhishingReportGenerator
     REPORTS_ENABLED = True
@@ -23,9 +33,29 @@ except Exception as e:
     print(f"QR Scanner disabled: {e}")
     QR_ENABLED = False
 
+try:
+    from screenshot_capture import get_screenshot_capture
+    screenshot_capture = get_screenshot_capture()
+    SCREENSHOT_ENABLED = True
+except Exception as e:
+    print(f"Screenshot disabled: {e}")
+    SCREENSHOT_ENABLED = False
+
+try:
+    from share_report import get_share_report
+    share_report = get_share_report()
+    SHARE_ENABLED = True
+except Exception as e:
+    print(f"Share disabled: {e}")
+    SHARE_ENABLED = False
+
 app = Flask(__name__)
 
+# API Keys from environment variables
 GOOGLE_SAFE_BROWSING_KEY = os.environ.get('GOOGLE_SAFE_BROWSING_KEY')
+VIRUSTOTAL_API_KEY = os.environ.get('VIRUSTOTAL_API_KEY')
+ABUSEIPDB_API_KEY = os.environ.get('ABUSEIPDB_API_KEY')
+
 scan_history = ScanHistory()
 threat_feed = ThreatFeed()
 header_analyzer = EmailHeaderAnalyzer()
@@ -110,8 +140,26 @@ def analyze_url_route():
         if not url: return jsonify({'success': False, 'error': 'Provide URL'}), 400
         if not url.startswith('http'): url = 'https://' + url
         
+        # Basic analysis
         results = analyze_url_comprehensive(url, GOOGLE_SAFE_BROWSING_KEY)
         score = results['overall_risk_score']
+        
+        # Enhanced analysis with APIs if available
+        api_results = None
+        if API_INTEGRATIONS_ENABLED and threat_intel:
+            try:
+                api_results = threat_intel.full_url_check(url)
+                
+                # Boost score if APIs found threats
+                if api_results.get('overall_threat_score', 0) > score:
+                    score = api_results['overall_threat_score']
+                
+                # Add API threats to reasons
+                for threat in api_results.get('threats_found', []):
+                    results['all_risk_factors'].append(threat)
+                    
+            except Exception as e:
+                print(f"API check failed: {e}")
         
         if score >= 80: color, icon = "#991b1b", "🚨"
         elif score >= 60: color, icon = "#dc2626", "⚠️"
@@ -119,10 +167,26 @@ def analyze_url_route():
         elif score >= 20: color, icon = "#d97706", "💡"
         else: color, icon = "#10b981", "✅"
         
-        response = {'success': True, 'url': url, 'danger_score': score, 'risk_level': results['risk_level'],
+        # Determine risk level
+        if score >= 80: risk_level = "CRITICAL"
+        elif score >= 60: risk_level = "HIGH RISK"
+        elif score >= 40: risk_level = "MEDIUM"
+        elif score >= 20: risk_level = "LOW"
+        else: risk_level = "SAFE"
+        
+        response = {'success': True, 'url': url, 'danger_score': score, 'risk_level': risk_level,
                    'risk_color': color, 'risk_icon': icon, 'summary': results['summary'], 'reasons': results['all_risk_factors'],
                    'domain_info': results['domain_info'], 'ssl_info': results['ssl_info'], 'redirect_info': results['redirect_info'],
                    'dns_info': results['dns_info'], 'content_info': results['content_info'], 'timestamp': results['timestamp']}
+        
+        # Add API results if available
+        if api_results:
+            response['api_results'] = {
+                'apis_checked': api_results.get('apis_checked', []),
+                'threats_found': api_results.get('threats_found', []),
+                'details': api_results.get('details', {})
+            }
+        
         scan_history.add_scan('url', url[:50], response)
         return jsonify(response)
     except Exception as e: return jsonify({'success': False, 'error': str(e)}), 500
@@ -248,7 +312,211 @@ def feedback():
 
 @app.route('/features')
 def features():
-    return jsonify({'success': True, 'features': {'pdf_reports': REPORTS_ENABLED, 'qr_scanner': QR_ENABLED}})
+    enabled_apis = []
+    if API_INTEGRATIONS_ENABLED and threat_intel:
+        enabled_apis = threat_intel.get_enabled_apis()
+    
+    return jsonify({
+        'success': True,
+        'features': {
+            'pdf_reports': REPORTS_ENABLED,
+            'qr_scanner': QR_ENABLED,
+            'screenshots': SCREENSHOT_ENABLED,
+            'sharing': SHARE_ENABLED,
+            'api_integrations': API_INTEGRATIONS_ENABLED
+        },
+        'apis': enabled_apis
+    })
+
+# ============================================
+# API INTEGRATION ROUTES
+# ============================================
+@app.route('/api/virustotal', methods=['POST'])
+def check_virustotal():
+    """Check URL with VirusTotal"""
+    if not API_INTEGRATIONS_ENABLED or not threat_intel:
+        return jsonify({'success': False, 'error': 'API integrations not available'}), 400
+    
+    try:
+        url = request.get_json().get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide URL'}), 400
+        
+        result = threat_intel.virustotal.scan_url(url)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/google-safe-browsing', methods=['POST'])
+def check_google_safe_browsing():
+    """Check URL with Google Safe Browsing"""
+    if not API_INTEGRATIONS_ENABLED or not threat_intel:
+        return jsonify({'success': False, 'error': 'API integrations not available'}), 400
+    
+    try:
+        url = request.get_json().get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide URL'}), 400
+        
+        result = threat_intel.google.check_url(url)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/abuseipdb', methods=['POST'])
+def check_abuseipdb():
+    """Check IP with AbuseIPDB"""
+    if not API_INTEGRATIONS_ENABLED or not threat_intel:
+        return jsonify({'success': False, 'error': 'API integrations not available'}), 400
+    
+    try:
+        data = request.get_json()
+        ip = data.get('ip', '').strip()
+        url = data.get('url', '').strip()
+        
+        if ip:
+            result = threat_intel.abuseipdb.check_ip(ip)
+        elif url:
+            result = threat_intel.abuseipdb.check_url_ip(url)
+        else:
+            return jsonify({'success': False, 'error': 'Provide IP or URL'}), 400
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/full-threat-check', methods=['POST'])
+def full_threat_check():
+    """Run URL through all threat intelligence APIs"""
+    if not API_INTEGRATIONS_ENABLED or not threat_intel:
+        return jsonify({'success': False, 'error': 'API integrations not available'}), 400
+    
+    try:
+        url = request.get_json().get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide URL'}), 400
+        
+        if not url.startswith('http'):
+            url = 'https://' + url
+        
+        result = threat_intel.full_url_check(url)
+        result['success'] = True
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/status')
+def api_status():
+    """Get status of all API integrations"""
+    status = {
+        'virustotal': {'enabled': False, 'name': 'VirusTotal'},
+        'google_safe_browsing': {'enabled': False, 'name': 'Google Safe Browsing'},
+        'abuseipdb': {'enabled': False, 'name': 'AbuseIPDB'}
+    }
+    
+    if API_INTEGRATIONS_ENABLED and threat_intel:
+        status['virustotal']['enabled'] = threat_intel.virustotal.enabled
+        status['google_safe_browsing']['enabled'] = threat_intel.google.enabled
+        status['abuseipdb']['enabled'] = threat_intel.abuseipdb.enabled
+    
+    return jsonify({'success': True, 'apis': status})
+
+# ============================================
+# SCREENSHOT ROUTES
+# ============================================
+@app.route('/screenshot', methods=['POST'])
+def capture_screenshot():
+    if not SCREENSHOT_ENABLED:
+        return jsonify({'success': False, 'error': 'Screenshots unavailable'}), 400
+    try:
+        url = request.get_json().get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide URL'}), 400
+        
+        # Safety check first
+        safety = screenshot_capture.analyze_screenshot_safety(url)
+        result = screenshot_capture.capture(url)
+        result['safety'] = safety
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/screenshot/thumbnail')
+def get_thumbnail():
+    if not SCREENSHOT_ENABLED:
+        return jsonify({'success': False, 'error': 'Screenshots unavailable'}), 400
+    try:
+        url = request.args.get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide URL'}), 400
+        
+        thumbnail_url = screenshot_capture.get_thumbnail_url(url)
+        return jsonify({'success': True, 'thumbnail_url': thumbnail_url})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================
+# SHARE & REPORT ROUTES
+# ============================================
+@app.route('/share', methods=['POST'])
+def create_share():
+    if not SHARE_ENABLED:
+        return jsonify({'success': False, 'error': 'Sharing unavailable'}), 400
+    try:
+        d = request.get_json()
+        report_type = d.get('type', 'url')
+        data = d.get('data', {})
+        
+        result = share_report.save_report(report_type, data)
+        
+        # Generate share text
+        base_url = request.host_url.rstrip('/')
+        share_text = share_report.generate_share_text(report_type, data, base_url)
+        
+        result['share_text'] = share_text
+        result['twitter_url'] = share_report.generate_twitter_share_url(share_text[:200])
+        result['email_url'] = share_report.generate_email_share_url(
+            'Phishing Analysis Report',
+            share_text
+        )
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/share/<report_id>')
+def get_shared_report(report_id):
+    if not SHARE_ENABLED:
+        return jsonify({'success': False, 'error': 'Sharing unavailable'}), 400
+    try:
+        result = share_report.get_report(report_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/report-phishing', methods=['POST'])
+def report_phishing():
+    """Get links to report a URL to various security services"""
+    try:
+        url = request.get_json().get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide URL'}), 400
+        
+        if SHARE_ENABLED:
+            report_urls = share_report.get_all_report_urls(url)
+        else:
+            from urllib.parse import quote
+            encoded_url = quote(url)
+            report_urls = {
+                'google_safe_browsing': f'https://safebrowsing.google.com/safebrowsing/report_phish/?url={encoded_url}',
+                'phishtank': 'https://phishtank.org/add_web_phish.php',
+                'microsoft': 'https://www.microsoft.com/en-us/wdsi/support/report-unsafe-site',
+            }
+        
+        return jsonify({'success': True, 'report_urls': report_urls})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.errorhandler(404)
 def not_found(e): return render_template('index.html'), 404
@@ -262,5 +530,15 @@ if __name__ == '__main__':
     print("=" * 50)
     print(f"📄 PDF Reports: {'✅' if REPORTS_ENABLED else '❌'}")
     print(f"📱 QR Scanner: {'✅' if QR_ENABLED else '❌'}")
+    print(f"📸 Screenshots: {'✅' if SCREENSHOT_ENABLED else '❌'}")
+    print(f"📤 Sharing: {'✅' if SHARE_ENABLED else '❌'}")
+    print("-" * 50)
+    print("🔌 API Integrations:")
+    if API_INTEGRATIONS_ENABLED and threat_intel:
+        print(f"   VirusTotal: {'✅' if threat_intel.virustotal.enabled else '❌ (add VIRUSTOTAL_API_KEY)'}")
+        print(f"   Google Safe Browsing: {'✅' if threat_intel.google.enabled else '❌ (add GOOGLE_SAFE_BROWSING_KEY)'}")
+        print(f"   AbuseIPDB: {'✅' if threat_intel.abuseipdb.enabled else '❌ (add ABUSEIPDB_API_KEY)'}")
+    else:
+        print("   ❌ API module not loaded")
     print("=" * 50)
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
