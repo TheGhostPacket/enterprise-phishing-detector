@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phishing Intelligence Platform</title>
+    <title>Phishing Intelligence Platform v5.0</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
 </head>
@@ -15,7 +15,7 @@
                 <span class="logo-icon">🛡️</span>
                 <div class="logo-text">
                     <h1>Phishing Intelligence Platform</h1>
-                    <span class="version">v4.0 - Email & URL Analysis</span>
+                    <span class="version">v5.0 - Complete Security Suite</span>
                 </div>
             </div>
             <div class="header-actions">
@@ -27,15 +27,27 @@
         <div class="tabs">
             <button class="tab active" data-tab="email">
                 <span class="tab-icon">📧</span>
-                <span class="tab-text">Email Analysis</span>
+                <span class="tab-text">Email</span>
             </button>
             <button class="tab" data-tab="url">
                 <span class="tab-icon">🔗</span>
-                <span class="tab-text">URL Analysis</span>
+                <span class="tab-text">URL</span>
             </button>
-            <button class="tab" data-tab="monitor">
-                <span class="tab-icon">📡</span>
-                <span class="tab-text">Monitor</span>
+            <button class="tab" data-tab="qr">
+                <span class="tab-icon">📱</span>
+                <span class="tab-text">QR Code</span>
+            </button>
+            <button class="tab" data-tab="headers">
+                <span class="tab-icon">📋</span>
+                <span class="tab-text">Headers</span>
+            </button>
+            <button class="tab" data-tab="history">
+                <span class="tab-icon">📊</span>
+                <span class="tab-text">History</span>
+            </button>
+            <button class="tab" data-tab="learn">
+                <span class="tab-icon">📚</span>
+                <span class="tab-text">Learn</span>
             </button>
         </div>
 
@@ -68,7 +80,6 @@
                 </div>
             </div>
 
-            <!-- Email Results -->
             <div class="results-container" id="emailResults" style="display: none;">
                 <div class="card results-card">
                     <div class="results-header" id="emailResultsHeader">
@@ -85,6 +96,10 @@
                     <div class="results-body">
                         <div class="advice-box" id="emailAdvice"></div>
                         
+                        <div class="results-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="generateEmailReport()">📄 Download PDF Report</button>
+                        </div>
+                        
                         <div class="results-section">
                             <h3>🔍 Threat Indicators</h3>
                             <ul class="findings-list" id="emailFindings"></ul>
@@ -93,7 +108,6 @@
                         <div class="results-section" id="emailUrlsSection" style="display: none;">
                             <h3>🔗 URLs Found in Email</h3>
                             <ul class="url-list" id="emailUrls"></ul>
-                            <p class="helper-text">Click "Analyze" to run deep URL analysis</p>
                         </div>
 
                         <div class="ml-section">
@@ -108,7 +122,7 @@
                             <p>Was this analysis accurate?</p>
                             <div class="feedback-buttons">
                                 <button class="btn btn-success btn-sm" onclick="submitFeedback(false)">✓ Correct</button>
-                                <button class="btn btn-danger btn-sm" onclick="submitFeedback(true)">✗ Incorrect</button>
+                                <button class="btn btn-danger btn-sm" onclick="submitFeedback(true)">✗ Wrong</button>
                             </div>
                         </div>
                     </div>
@@ -121,7 +135,7 @@
             <div class="card">
                 <div class="card-header">
                     <h2>🔗 URL Threat Intelligence</h2>
-                    <p>Analyze any suspicious URL for phishing, malware, and security threats</p>
+                    <p>Analyze suspicious URLs for phishing and security threats</p>
                 </div>
                 <div class="card-body">
                     <form id="urlForm">
@@ -140,16 +154,33 @@
                             </button>
                         </div>
                     </form>
+                    
+                    <!-- Bulk URL Scanner -->
+                    <div class="subsection">
+                        <h3>📋 Bulk URL Scanner</h3>
+                        <textarea id="bulkUrls" rows="4" placeholder="Enter multiple URLs (one per line, max 10)..."></textarea>
+                        <button class="btn btn-secondary btn-full" onclick="bulkScanUrls()">Scan All URLs</button>
+                    </div>
+                    
+                    <!-- URL Expander -->
+                    <div class="subsection">
+                        <h3>🔓 URL Expander</h3>
+                        <div class="input-row">
+                            <input type="text" id="shortUrl" placeholder="Paste shortened URL (bit.ly, t.co, etc.)">
+                            <button class="btn btn-secondary" onclick="expandUrl()">Expand</button>
+                        </div>
+                        <div id="expandResult" class="expand-result" style="display: none;"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Quick Check Result -->
             <div class="quick-result" id="quickResult" style="display: none;">
                 <div class="quick-verdict" id="quickVerdict">CHECKING...</div>
                 <div class="quick-details" id="quickDetails"></div>
             </div>
 
-            <!-- Full URL Results -->
+            <div id="bulkResults" class="bulk-results" style="display: none;"></div>
+
             <div class="results-container" id="urlResults" style="display: none;">
                 <div class="card results-card">
                     <div class="results-header" id="urlResultsHeader">
@@ -166,37 +197,35 @@
                     <div class="results-body">
                         <div class="advice-box" id="urlSummary"></div>
                         
-                        <!-- Domain Info -->
+                        <div class="results-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="generateUrlReport()">📄 Download PDF Report</button>
+                        </div>
+                        
                         <div class="results-section collapsible">
                             <h3 class="section-toggle">🌐 Domain Intelligence <span class="toggle-icon">▼</span></h3>
                             <div class="section-content" id="domainInfo"></div>
                         </div>
 
-                        <!-- SSL Info -->
                         <div class="results-section collapsible">
                             <h3 class="section-toggle">🔒 SSL Certificate <span class="toggle-icon">▼</span></h3>
                             <div class="section-content" id="sslInfo"></div>
                         </div>
 
-                        <!-- Redirect Info -->
                         <div class="results-section collapsible">
                             <h3 class="section-toggle">↪️ Redirect Analysis <span class="toggle-icon">▼</span></h3>
                             <div class="section-content" id="redirectInfo"></div>
                         </div>
 
-                        <!-- DNS Info -->
                         <div class="results-section collapsible">
                             <h3 class="section-toggle">📡 DNS Records <span class="toggle-icon">▼</span></h3>
                             <div class="section-content" id="dnsInfo"></div>
                         </div>
 
-                        <!-- Content Info -->
                         <div class="results-section collapsible">
                             <h3 class="section-toggle">📄 Content Analysis <span class="toggle-icon">▼</span></h3>
                             <div class="section-content" id="contentInfo"></div>
                         </div>
 
-                        <!-- Risk Factors -->
                         <div class="results-section">
                             <h3>⚠️ All Risk Factors</h3>
                             <ul class="findings-list" id="urlFindings"></ul>
@@ -206,35 +235,154 @@
             </div>
         </div>
 
-        <!-- Monitor Tab -->
-        <div class="tab-content" id="monitor-tab">
+        <!-- QR Code Scanner Tab -->
+        <div class="tab-content" id="qr-tab">
             <div class="card">
                 <div class="card-header">
-                    <h2>📡 Real-time Monitoring</h2>
-                    <p>Monitor email inbox for phishing threats (simulation)</p>
+                    <h2>📱 QR Code Scanner</h2>
+                    <p>Upload a QR code image to extract and analyze the URL</p>
                 </div>
                 <div class="card-body">
-                    <div class="monitor-status" id="monitorStatus">
-                        <div class="status-indicator offline"></div>
-                        <span>Monitoring: <strong>Inactive</strong></span>
+                    <div class="qr-upload-area" id="qrUploadArea">
+                        <div class="upload-icon">📷</div>
+                        <p>Drag & drop a QR code image here</p>
+                        <p class="helper-text">or click to select a file</p>
+                        <input type="file" id="qrFileInput" accept="image/*" style="display: none;">
                     </div>
-                    <div class="monitor-stats">
-                        <div class="stat-box">
-                            <span class="stat-value" id="emailsProcessed">0</span>
-                            <span class="stat-label">Emails Processed</span>
+                    
+                    <div class="qr-preview" id="qrPreview" style="display: none;">
+                        <img id="qrPreviewImg" src="" alt="QR Preview">
+                        <button class="btn btn-danger btn-sm" onclick="clearQrPreview()">✕ Clear</button>
+                    </div>
+                    
+                    <button class="btn btn-primary btn-full" id="scanQrBtn" disabled onclick="scanQrCode()">
+                        🔍 Scan QR Code
+                    </button>
+                </div>
+            </div>
+
+            <div class="results-container" id="qrResults" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📱 QR Code Contents</h2>
+                    </div>
+                    <div class="card-body" id="qrResultsBody"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Email Header Analyzer Tab -->
+        <div class="tab-content" id="headers-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📋 Email Header Analyzer</h2>
+                    <p>Paste raw email headers to analyze SPF, DKIM, DMARC authentication</p>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>Raw Email Headers</label>
+                        <textarea id="headerInput" rows="10" placeholder="Paste the complete email headers here...
+
+To get headers:
+• Gmail: Open email → ⋮ → Show original
+• Outlook: Open email → ⋯ → View message source
+• Apple Mail: View → Message → Raw Source"></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-full" onclick="analyzeHeaders()">
+                        🔍 Analyze Headers
+                    </button>
+                </div>
+            </div>
+
+            <div class="results-container" id="headerResults" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>📋 Header Analysis Results</h2>
+                    </div>
+                    <div class="card-body" id="headerResultsBody"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-content" id="history-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📊 Scan History & Statistics</h2>
+                    <p>View your recent scans and threat statistics</p>
+                </div>
+                <div class="card-body">
+                    <div class="stats-grid" id="statsGrid">
+                        <div class="stat-card">
+                            <span class="stat-value" id="totalScans">0</span>
+                            <span class="stat-label">Total Scans</span>
                         </div>
-                        <div class="stat-box">
-                            <span class="stat-value" id="alertsCount">0</span>
-                            <span class="stat-label">Threats Blocked</span>
+                        <div class="stat-card">
+                            <span class="stat-value" id="emailScans">0</span>
+                            <span class="stat-label">Email Scans</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-value" id="urlScans">0</span>
+                            <span class="stat-label">URL Scans</span>
+                        </div>
+                        <div class="stat-card danger">
+                            <span class="stat-value" id="highRiskCount">0</span>
+                            <span class="stat-label">High Risk</span>
                         </div>
                     </div>
-                    <div class="button-group">
-                        <button class="btn btn-success" id="startMonitor">▶️ Start Monitoring</button>
-                        <button class="btn btn-danger" id="stopMonitor" disabled>⏹️ Stop</button>
+                    
+                    <div class="search-bar">
+                        <input type="text" id="historySearch" placeholder="Search history...">
+                        <button class="btn btn-secondary" onclick="searchHistory()">🔍</button>
                     </div>
-                    <div class="alerts-container" id="alertsContainer">
-                        <h3>Recent Alerts</h3>
-                        <ul class="alerts-list" id="alertsList"></ul>
+                    
+                    <div class="filter-buttons">
+                        <button class="btn btn-sm filter-btn active" onclick="filterHistory('all', this)">All</button>
+                        <button class="btn btn-sm filter-btn" onclick="filterHistory('email', this)">Emails</button>
+                        <button class="btn btn-sm filter-btn" onclick="filterHistory('url', this)">URLs</button>
+                    </div>
+                    
+                    <div class="history-list" id="historyList">
+                        <p class="empty-state">Loading history...</p>
+                    </div>
+                    
+                    <button class="btn btn-danger btn-full" onclick="clearHistory()">🗑️ Clear History</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>🌐 Live Threat Feed</h2>
+                    <p>Recent phishing and malware URLs from threat intelligence sources</p>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-secondary btn-full" onclick="loadThreatFeed()">🔄 Load Latest Threats</button>
+                    <div id="threatFeed" class="threat-feed"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Learning Center Tab -->
+        <div class="tab-content" id="learn-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h2>📚 Learning Center</h2>
+                    <p>Learn how to identify and protect yourself from phishing attacks</p>
+                </div>
+                <div class="card-body">
+                    <div class="learn-section">
+                        <h3>🎯 How to Spot Phishing</h3>
+                        <div id="phishingTips" class="tips-grid"></div>
+                    </div>
+                    
+                    <div class="learn-section">
+                        <h3>📋 Types of Phishing Attacks</h3>
+                        <div id="phishingTypes" class="types-list"></div>
+                    </div>
+                    
+                    <div class="learn-section">
+                        <h3>🆘 What To Do If...</h3>
+                        <div id="whatToDo" class="action-cards"></div>
                     </div>
                 </div>
             </div>
@@ -250,8 +398,13 @@
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
-        <p>Analyzing...</p>
+        <p id="loadingText">Analyzing...</p>
     </div>
+
+    <script>
+        window.lastEmailAnalysis = null;
+        window.lastUrlAnalysis = null;
+    </script>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
