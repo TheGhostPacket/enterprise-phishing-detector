@@ -1,29 +1,23 @@
 """
-Screenshot Capture Module v3
-Uses reliable screenshot services that generate images on-demand
+Screenshot Capture Module v4
+Returns direct URLs for the browser to load - no server-side fetching needed
+This bypasses any server-side network restrictions
 """
 
-import requests
 from urllib.parse import quote, urlparse
-import hashlib
-import os
-import base64
+import re
 
 
 class ScreenshotCapture:
-    """Capture webpage screenshots using free APIs"""
+    """Generate screenshot URLs for browser to load directly"""
     
     def __init__(self):
-        self.cache_dir = '/tmp/screenshots'
-        try:
-            os.makedirs(self.cache_dir, exist_ok=True)
-        except:
-            pass
+        pass
     
     def capture(self, url, timeout=15):
         """
-        Capture screenshot of a URL
-        Returns screenshot URL from reliable services
+        Generate screenshot URL for the browser to load
+        No server-side HTTP requests needed!
         """
         result = {
             'success': False,
@@ -50,59 +44,12 @@ class ScreenshotCapture:
         
         encoded_url = quote(url, safe='')
         
-        # List of screenshot services to try (these return images directly via URL)
-        services = [
-            {
-                'name': 'WordPress mshots',
-                'url': f'https://s.wordpress.com/mshots/v1/{encoded_url}?w=1280&h=960',
-                'test': True
-            },
-            {
-                'name': 'thum.io',
-                'url': f'https://image.thum.io/get/width/1280/crop/800/noanimate/{encoded_url}',
-                'test': True
-            },
-            {
-                'name': 'PagePeeker',
-                'url': f'https://free.pagepeeker.com/v2/thumbs.php?size=x&url={encoded_url}',
-                'test': False  # Don't test, just use
-            }
-        ]
-        
-        # Try each service
-        for service in services:
-            try:
-                if service.get('test', False):
-                    # Test if the service responds
-                    response = requests.head(
-                        service['url'],
-                        timeout=8,
-                        allow_redirects=True,
-                        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'}
-                    )
-                    
-                    if response.status_code == 200:
-                        content_type = response.headers.get('Content-Type', '')
-                        # Check if it's returning an image or will generate one
-                        if 'image' in content_type or response.status_code == 200:
-                            result['success'] = True
-                            result['screenshot_url'] = service['url']
-                            result['api_used'] = service['name']
-                            return result
-                else:
-                    # Just return the URL without testing
-                    result['success'] = True
-                    result['screenshot_url'] = service['url']
-                    result['api_used'] = service['name']
-                    return result
-                    
-            except Exception as e:
-                continue
-        
-        # Fallback: Always return thum.io URL (it generates on-demand)
+        # WordPress mshots is very reliable and free
+        # The browser will load this URL directly
         result['success'] = True
-        result['screenshot_url'] = f'https://image.thum.io/get/width/1280/crop/800/{encoded_url}'
-        result['api_used'] = 'thum.io (fallback)'
+        result['screenshot_url'] = f'https://s.wordpress.com/mshots/v1/{encoded_url}?w=1280&h=960'
+        result['api_used'] = 'WordPress mshots'
+        result['note'] = 'Image may take a few seconds to generate on first load'
         
         return result
     
@@ -130,7 +77,6 @@ class ScreenshotCapture:
                 warnings.append(f'Suspicious TLD: {tld}')
                 break
         
-        import re
         if re.match(r'https?://\d+\.\d+\.\d+\.\d+', url):
             warnings.append('URL uses IP address instead of domain')
         
