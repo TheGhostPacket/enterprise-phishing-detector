@@ -27,12 +27,6 @@ tabs.forEach(tab => {
     });
 });
 
-// Theme Toggle
-themeToggle.addEventListener('click', () => {
-    document.body.classList.toggle('light-theme');
-    themeToggle.textContent = document.body.classList.contains('light-theme') ? '☀️' : '🌙';
-});
-
 // Loading State
 function showLoading(msg = 'Analyzing...') { loadingText.textContent = msg; loadingOverlay.classList.add('show'); }
 function hideLoading() { loadingOverlay.classList.remove('show'); }
