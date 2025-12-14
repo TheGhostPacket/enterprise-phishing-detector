@@ -5,7 +5,6 @@ const tabs = document.querySelectorAll('.tab');
 const tabContents = document.querySelectorAll('.tab-content');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingText = document.getElementById('loadingText');
-const themeToggle = document.getElementById('themeToggle');
 
 let lastAnalyzedEmail = null;
 let qrImageData = null;
