@@ -21,18 +21,6 @@
     --radius-sm: 8px;
 }
 
-.light-theme {
-    --bg-primary: #f1f5f9;
-    --bg-secondary: #e2e8f0;
-    --bg-card: #ffffff;
-    --bg-input: #f1f5f9;
-    --text-primary: #1e293b;
-    --text-secondary: #475569;
-    --text-muted: #64748b;
-    --border-color: #cbd5e1;
-    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
 /* ============================================
    Base Styles
    ============================================ */
