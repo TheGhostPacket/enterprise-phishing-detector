@@ -410,15 +410,22 @@ document.addEventListener('DOMContentLoaded', () => { setupCollapsibles(); conso
 // ============================================
 // Screenshot
 // ============================================
+// ============================================
+// REPLACE your captureScreenshot function in app.js with this one
+// ============================================
+
 async function captureScreenshot() {
-    if (!window.lastUrlAnalysis) { alert('Analyze a URL first'); return; }
+    if (!window.lastUrlAnalysis) { 
+        alert('Analyze a URL first'); 
+        return; 
+    }
     
     const url = window.lastUrlAnalysis.url;
     const section = document.getElementById('screenshotSection');
     const preview = document.getElementById('screenshotPreview');
     
     section.style.display = 'block';
-    preview.innerHTML = '<div class="screenshot-loading">📸 Capturing screenshot...</div>';
+    preview.innerHTML = '<div class="screenshot-loading" style="padding:40px;text-align:center;color:var(--text-secondary);">📸 Capturing screenshot...</div>';
     
     try {
         const res = await fetch('/screenshot', {
@@ -428,121 +435,34 @@ async function captureScreenshot() {
         });
         const data = await res.json();
         
+        console.log('Screenshot response:', data); // Debug log
+        
         if (data.success) {
             let html = '';
-            if (data.safety && !data.safety.safe_to_preview) {
-                html += `<div class="warning">⚠️ ${data.safety.warnings.join(', ')}</div>`;
+            
+            // Show safety warnings if any
+            if (data.safety && data.safety.warnings && data.safety.warnings.length > 0) {
+                html += `<div style="background:rgba(245,158,11,0.1);border:1px solid var(--warning);border-radius:8px;padding:10px;margin-bottom:15px;font-size:0.85rem;color:var(--warning);">⚠️ ${data.safety.warnings.join(', ')}</div>`;
             }
+            
+            // Display the screenshot
             if (data.screenshot_base64) {
-                html += `<img src="data:image/png;base64,${data.screenshot_base64}" alt="Screenshot">`;
+                html += `<img src="data:image/png;base64,${data.screenshot_base64}" alt="Screenshot" style="max-width:100%;border-radius:8px;border:1px solid var(--border-color);">`;
             } else if (data.screenshot_url) {
-                html += `<img src="${data.screenshot_url}" alt="Screenshot" onerror="this.parentElement.innerHTML='<p>Screenshot failed</p>'">`;
+                html += `<img src="${data.screenshot_url}" alt="Screenshot" style="max-width:100%;border-radius:8px;border:1px solid var(--border-color);" onerror="this.onerror=null;this.src='';this.alt='Screenshot could not be loaded';this.style.padding='40px';this.style.background='var(--bg-input)';this.style.display='block';this.style.textAlign='center';">`;
+                if (data.note) {
+                    html += `<p style="font-size:0.8rem;color:var(--text-muted);margin-top:10px;text-align:center;">${data.note}</p>`;
+                }
+            } else {
+                html = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Screenshot captured but no image data received</p>';
             }
-            preview.innerHTML = html || '<p>Screenshot captured</p>';
+            
+            preview.innerHTML = html;
         } else {
-            preview.innerHTML = `<p style="color: var(--danger);">❌ ${data.error}</p>`;
+            preview.innerHTML = `<p style="color:var(--danger);text-align:center;padding:20px;">❌ ${data.error || 'Screenshot failed'}</p>`;
         }
     } catch (e) {
-        preview.innerHTML = '<p style="color: var(--danger);">Failed to capture screenshot</p>';
+        console.error('Screenshot error:', e);
+        preview.innerHTML = '<p style="color:var(--danger);text-align:center;padding:20px;">❌ Failed to capture screenshot - network error</p>';
     }
 }
-
-// ============================================
-// Share & Report
-// ============================================
-let currentShareData = null;
-
-async function shareAnalysis(type) {
-    const data = type === 'email' ? window.lastEmailAnalysis : window.lastUrlAnalysis;
-    if (!data) { alert(`Analyze ${type === 'email' ? 'an email' : 'a URL'} first`); return; }
-    
-    showLoading('Generating share link...');
-    
-    try {
-        const res = await fetch('/share', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type, data })
-        });
-        const result = await res.json();
-        
-        if (result.success) {
-            currentShareData = result;
-            document.getElementById('shareTextArea').value = result.share_text;
-            document.getElementById('shareModal').style.display = 'flex';
-        } else {
-            alert('Failed to create share link');
-        }
-    } catch (e) {
-        alert('Sharing failed');
-    } finally {
-        hideLoading();
-    }
-}
-
-function shareToTwitter() {
-    if (currentShareData?.twitter_url) {
-        window.open(currentShareData.twitter_url, '_blank');
-    }
-}
-
-function shareViaEmail() {
-    if (currentShareData?.email_url) {
-        window.location.href = currentShareData.email_url;
-    }
-}
-
-function copyShareText() {
-    const textarea = document.getElementById('shareTextArea');
-    textarea.select();
-    document.execCommand('copy');
-    alert('Copied to clipboard!');
-}
-
-async function reportPhishing() {
-    if (!window.lastUrlAnalysis) { alert('Analyze a URL first'); return; }
-    
-    try {
-        const res = await fetch('/report-phishing', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: window.lastUrlAnalysis.url })
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            const linksContainer = document.getElementById('reportLinks');
-            linksContainer.innerHTML = Object.entries(data.report_urls).map(([name, link]) => `
-                <a href="${link}" target="_blank" class="report-link">
-                    <span class="report-link-name">${formatReportName(name)}</span>
-                    <span class="report-link-arrow">→</span>
-                </a>
-            `).join('');
-            document.getElementById('reportModal').style.display = 'flex';
-        }
-    } catch (e) {
-        alert('Failed to get report links');
-    }
-}
-
-function formatReportName(name) {
-    const names = {
-        'google_safe_browsing': '🔍 Google Safe Browsing',
-        'phishtank': '🎣 PhishTank',
-        'microsoft': '🪟 Microsoft Security',
-        'netcraft': '🌐 Netcraft',
-        'apwg': '🛡️ APWG (Anti-Phishing)'
-    };
-    return names[name] || name;
-}
-
-function closeModal(id) {
-    document.getElementById(id).style.display = 'none';
-}
-
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal-overlay')) {
-        e.target.style.display = 'none';
-    }
-});
-
