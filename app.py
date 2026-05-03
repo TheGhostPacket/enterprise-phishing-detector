@@ -51,6 +51,16 @@ except Exception as e:
 
 app = Flask(__name__)
 
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
 # API Keys from environment variables
 GOOGLE_SAFE_BROWSING_KEY = os.environ.get('GOOGLE_SAFE_BROWSING_KEY')
 VIRUSTOTAL_API_KEY = os.environ.get('VIRUSTOTAL_API_KEY')
@@ -107,6 +117,8 @@ def home():
 @app.route('/app')
 def dashboard():
     return render_template('index.html')
+
+@limiter.limit("30 per hour")
 @app.route('/analyze', methods=['POST'])
 def analyze_email_route():
     try:
@@ -128,6 +140,7 @@ def analyze_email_route():
         return jsonify(result)
     except Exception as e: return jsonify({'success': False, 'error': str(e)}), 500
 
+@limiter.limit("20 per hour")
 @app.route('/analyze-url', methods=['POST'])
 def analyze_url_route():
     try:
@@ -380,6 +393,7 @@ def check_abuseipdb():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@limiter.limit("10 per hour")
 @app.route('/api/full-threat-check', methods=['POST'])
 def full_threat_check():
     """Run URL through all threat intelligence APIs"""
