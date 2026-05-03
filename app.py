@@ -79,16 +79,7 @@ def check_live_url_safety(body):
         except: pass
     return danger_score, reasons, urls
 
-class PhishingMLModel:
-    def __init__(self): self.trained = True
-    def predict(self, subject, body):
-        text = (subject + " " + body).lower()
-        score = sum(20 for w in ['urgent','immediate','expires'] if w in text)
-        score += sum(15 for w in ['money','prize','won','winner'] if w in text)
-        score += sum(10 for w in ['click','verify','confirm','update'] if w in text)
-        return min(score, 95), "High" if score > 70 else "Medium" if score > 40 else "Low"
-    def learn(self, subject, body, is_phishing): pass
-
+from ml_model import PhishingMLModel
 ml_model = PhishingMLModel()
 
 def analyze_email(subject, sender, body):
