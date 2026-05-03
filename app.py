@@ -4,6 +4,8 @@ Complete Email and URL Analysis Suite
 """
 
 from flask import Flask, render_template, request, jsonify, send_file
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import datetime, os, re, requests, socket, ssl, json, base64
 from urllib.parse import urlparse
 from url_analyzer import analyze_url_comprehensive
