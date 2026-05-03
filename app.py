@@ -53,9 +53,6 @@ except Exception as e:
 
 app = Flask(__name__)
 
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-
 limiter = Limiter(
     get_remote_address,
     app=app,
