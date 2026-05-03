@@ -110,7 +110,10 @@ def analyze_email(subject, sender, body):
 # ROUTES
 # ============================================
 @app.route('/')
-def home(): return render_template('index.html')
+def home(): return render_template('landing.html')
+
+@app.route('/app')
+def dashboard(): return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
 def analyze_email_route():
