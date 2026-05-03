@@ -130,7 +130,6 @@ def analyze_email_route():
     body    = str(d.get('body',    '') or '').strip()[:10000]
     if not sender or not subject:
     return jsonify({'success': False, 'error': 'Provide sender and subject'}), 400
-        score, reasons, ml_prob, ml_conf, urls = analyze_email(subject, sender, body)
         
         if score >= 80: level, color, icon, advice = "CRITICAL", "#991b1b", "🚨", "Extreme danger"
         elif score >= 60: level, color, icon, advice = "HIGH RISK", "#dc2626", "⚠️", "High threat"
