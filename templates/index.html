@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Phishing Intelligence Platform — Dashboard</title>
-  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --white:   #ffffff;
@@ -532,6 +532,44 @@
     .feedback-row p { font-size: .83rem; color: var(--muted); flex: 1; }
 
     /* ── RESPONSIVE ── */
+    /* ── CHART ── */
+    .chart-wrap {
+      position: relative; height: 220px;
+      margin-bottom: 1.25rem;
+    }
+
+    /* ── ATTACHMENT ── */
+    .attach-drop {
+      border: 2px dashed var(--border); border-radius: var(--r);
+      padding: 2.5rem 2rem; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s; margin-bottom: 1rem;
+    }
+    .attach-drop:hover, .attach-drop.over { border-color: var(--accent); background: #eff6ff; }
+    .attach-drop-icon { font-size: 1.75rem; margin-bottom: .5rem; }
+    .attach-drop p { font-size: .875rem; color: var(--muted); }
+    .attach-drop small { font-size: .75rem; color: #bbb; }
+    .attach-file-info {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; padding: .75rem 1rem;
+      background: var(--off); border: 1px solid var(--border);
+      border-radius: var(--r); margin-bottom: 1rem; font-size: .875rem;
+    }
+    .attach-filename { font-weight: 500; flex: 1; word-break: break-all; }
+    .attach-size { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+
+    /* ── WEBHOOK ── */
+    .webhook-status {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .83rem; padding: .6rem .875rem;
+      border-radius: var(--r); margin-top: .75rem;
+    }
+    .webhook-status.success { background: #dcfce7; color: var(--safe); }
+    .webhook-status.error   { background: #fee2e2; color: var(--danger); }
+    .webhook-note {
+      font-size: .78rem; color: var(--muted);
+      margin-top: .6rem; line-height: 1.55;
+    }
+
     @media(max-width:720px) {
       .stats-strip, .stats-grid { grid-template-columns: repeat(2,1fr); }
       .info-grid, .tips-grid, .auth-grid, .action-cards { grid-template-columns: 1fr; }
@@ -596,6 +634,9 @@
     </button>
     <button class="tab" data-tab="history">
       <span class="tab-icon">📊</span><span class="tab-text">History</span>
+    </button>
+    <button class="tab" data-tab="attachment">
+      <span class="tab-icon">📎</span><span class="tab-text">Attachment</span>
     </button>
   </div>
 
@@ -669,6 +710,12 @@
             <span class="ml-box-label">Phishing Probability (trained model)</span>
             <span class="ml-box-val" id="emailMlProb">—</span>
           </div>
+        </div>
+
+        <div class="feedback-row">
+          <p>Was this analysis accurate?</p>
+          <button class="btn btn-secondary btn-sm" onclick="submitFeedback(false)">✓ Yes</button>
+          <button class="btn btn-secondary btn-sm" onclick="submitFeedback(true)">✗ No</button>
         </div>
       </div>
     </div>
@@ -895,6 +942,19 @@ To get headers:
       </div>
     </div>
 
+    <!-- THREAT SCORE CHART -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-head-icon">📈</span>
+        <div><h2>Threat Score History</h2><p>Risk scores from your recent scans</p></div>
+      </div>
+      <div class="card-body">
+        <div class="chart-wrap">
+          <canvas id="threatChart"></canvas>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-head"><span class="card-head-icon">📊</span><div><h2>Scan History</h2></div></div>
       <div class="card-body">
@@ -924,6 +984,24 @@ To get headers:
 
     <!-- LEARN — collapsible at bottom of history tab -->
     <div class="card">
+      <div class="card-head"><span class="card-head-icon">🔔</span><div><h2>Slack Webhook Alerts</h2><p>Get notified in Slack when critical threats are detected</p></div></div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Slack Webhook URL</label>
+          <input type="text" id="webhookUrl" placeholder="https://hooks.slack.com/services/...">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="testWebhook()">⚡ Test Connection</button>
+          <button class="btn btn-primary" onclick="saveWebhook()">💾 Save</button>
+        </div>
+        <div id="webhookStatus"></div>
+        <p class="webhook-note">
+          To get a webhook URL: In Slack, go to <strong>Apps → Incoming Webhooks → Add New Webhook</strong>. 
+          Once saved, alerts will be sent automatically when any scan returns CRITICAL or HIGH RISK.
+        </p>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-head"><span class="card-head-icon">📚</span><div><h2>Learning Resources</h2><p>How to identify and protect yourself from phishing attacks</p></div></div>
       <div class="card-body">
         <div class="learn-section">
@@ -942,6 +1020,79 @@ To get headers:
     </div>
 
   </div>
+  <!-- ═══════════════════════════════════════════════════════
+       ATTACHMENT TAB
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-content" id="attachment-tab">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-head-icon">📎</span>
+        <div>
+          <h2>Email Attachment Analysis</h2>
+          <p>Upload a suspicious attachment to scan for macros, scripts, and phishing indicators</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="attach-drop" id="attachDrop">
+          <div class="attach-drop-icon">📄</div>
+          <p>Drag and drop an attachment here, or click to select</p>
+          <small>Supports PDF, Word, Excel, PowerPoint, ZIP · Max 10MB</small>
+          <input type="file" id="attachInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" style="display:none">
+        </div>
+        <div class="attach-file-info" id="attachFileInfo" style="display:none">
+          <span class="attach-filename" id="attachFilename"></span>
+          <span class="attach-size" id="attachFileSize"></span>
+          <button class="btn btn-secondary btn-sm" onclick="clearAttach()">✕</button>
+        </div>
+        <button class="btn btn-primary btn-full" id="attachScanBtn" disabled onclick="scanAttachment()">
+          🔍 Analyze Attachment
+        </button>
+      </div>
+    </div>
+
+    <!-- Attachment Result -->
+    <div class="result-card" id="attachResult">
+      <div class="result-header" id="attachResultHeader">
+        <div class="result-badge">
+          <span class="result-icon" id="attachIcon">📄</span>
+          <span class="result-level" id="attachLevel">—</span>
+        </div>
+        <div class="result-score-wrap">
+          <div class="result-score-label">Risk Score</div>
+          <div>
+            <span class="result-score" id="attachScore">—</span>
+            <span class="result-score-max">/100</span>
+          </div>
+        </div>
+      </div>
+      <div class="result-body">
+        <div class="advice-box" id="attachSummary"></div>
+
+        <div class="res-section">
+          <div class="res-section-title">File Details</div>
+          <div class="info-grid" id="attachFileDetails"></div>
+        </div>
+
+        <div class="res-section">
+          <div class="res-section-title">Risk Factors</div>
+          <div class="findings" id="attachFindings"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-head-icon">ℹ️</span><div><h2>What we check</h2></div></div>
+      <div class="card-body">
+        <div class="info-grid">
+          <div class="info-cell"><div class="info-cell-label">PDF Files</div><div class="info-cell-val" style="font-size:.82rem;font-weight:400">JavaScript, auto-actions, embedded files, launch commands</div></div>
+          <div class="info-cell"><div class="info-cell-label">Office Documents</div><div class="info-cell-val" style="font-size:.82rem;font-weight:400">VBA macros, auto-open scripts, external references, shell commands</div></div>
+          <div class="info-cell"><div class="info-cell-label">ZIP Archives</div><div class="info-cell-val" style="font-size:.82rem;font-weight:400">Dangerous files inside archive, double extension tricks</div></div>
+          <div class="info-cell"><div class="info-cell-label">All Files</div><div class="info-cell-val" style="font-size:.82rem;font-weight:400">Filename patterns, file size anomalies, dangerous extensions</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <!-- LOADING -->
@@ -1086,6 +1237,7 @@ function displayEmailResult(d) {
   document.getElementById('emailMlProb').textContent = `${d.ml_probability}% (${d.ml_confidence})`;
   card.scrollIntoView({ behavior:'smooth', block:'nearest' });
   loadStats();
+  maybeSendWebhookAlert('email', `${sender} — ${subject}`, d.risk_level, score, d.reasons||[]);
 }
 
 // ── URL ANALYSIS ──────────────────────────────────────────────
@@ -1150,6 +1302,7 @@ function displayUrlResult(d) {
 
   card.scrollIntoView({ behavior:'smooth', block:'nearest' });
   loadStats();
+  maybeSendWebhookAlert('url', d.url, d.risk_level, score, d.reasons||[]);
 }
 
 function renderInfoGrid(id, info, fields) {
@@ -1320,7 +1473,11 @@ async function loadHistory(type=null) {
   try {
     const res = await fetch(type ? `/history?type=${type}` : '/history');
     const d   = await res.json();
-    if (d.success) { renderHistory(d.scans); loadStats(); }
+    if (d.success) {
+      renderHistory(d.scans);
+      loadStats();
+      buildChart(d.scans);
+    }
   } catch(e) {}
 }
 
@@ -1491,8 +1648,222 @@ function toggleCollapsible(btn) {
 function truncate(t, n) { return t?.length > n ? t.substring(0,n-3)+'...' : t||''; }
 function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
+// ── CHART ─────────────────────────────────────────────────────
+let threatChart = null;
+
+function buildChart(scans) {
+  const ctx = document.getElementById('threatChart');
+  if (!ctx) return;
+
+  const recent = scans.slice(0, 20).reverse();
+  const labels = recent.map(s => {
+    const d = new Date(s.timestamp);
+    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  });
+  const scores = recent.map(s => s.risk_score || 0);
+  const colors = scores.map(s =>
+    s >= 80 ? '#991b1b' : s >= 60 ? '#dc2626' : s >= 40 ? '#d97706' : '#16a34a'
+  );
+
+  if (threatChart) threatChart.destroy();
+
+  threatChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Threat Score',
+        data: scores,
+        backgroundColor: colors,
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => recent[items[0].dataIndex]?.target || '',
+            label: (item) => `Score: ${item.raw}/100`
+          }
+        }
+      },
+      scales: {
+        y: {
+          min: 0, max: 100,
+          grid: { color: '#e4e4e0' },
+          ticks: { font: { size: 11 } }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 10 }, maxRotation: 45 }
+        }
+      }
+    }
+  });
+}
+
+// ── ATTACHMENT ────────────────────────────────────────────────
+let attachFileData = null;
+let attachFileName = null;
+
+const attachDrop  = document.getElementById('attachDrop');
+const attachInput = document.getElementById('attachInput');
+
+if (attachDrop) {
+  attachDrop.addEventListener('click', () => attachInput.click());
+  attachDrop.addEventListener('dragover', e => { e.preventDefault(); attachDrop.classList.add('over'); });
+  attachDrop.addEventListener('dragleave', () => attachDrop.classList.remove('over'));
+  attachDrop.addEventListener('drop', e => {
+    e.preventDefault(); attachDrop.classList.remove('over');
+    if (e.dataTransfer.files[0]) handleAttachFile(e.dataTransfer.files[0]);
+  });
+  attachInput.addEventListener('change', e => { if (e.target.files[0]) handleAttachFile(e.target.files[0]); });
+}
+
+function handleAttachFile(file) {
+  if (file.size > 10 * 1024 * 1024) return alert('File too large. Maximum size is 10MB.');
+  attachFileName = file.name;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    attachFileData = e.target.result;
+    document.getElementById('attachFilename').textContent = file.name;
+    document.getElementById('attachFileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    document.getElementById('attachFileInfo').style.display = 'flex';
+    attachDrop.style.display = 'none';
+    document.getElementById('attachScanBtn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearAttach() {
+  attachFileData = null; attachFileName = null;
+  document.getElementById('attachFileInfo').style.display = 'none';
+  attachDrop.style.display = 'block';
+  document.getElementById('attachScanBtn').disabled = true;
+  document.getElementById('attachResult').classList.remove('show');
+}
+
+async function scanAttachment() {
+  if (!attachFileData || !attachFileName) return;
+  showLoading('Analyzing attachment...');
+  try {
+    const res  = await fetch('/analyze-attachment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: attachFileName, file_data: attachFileData })
+    });
+    const data = await res.json();
+    if (data.success) displayAttachResult(data);
+    else alert('Error: ' + data.error);
+  } catch(e) { alert('Failed to analyze attachment'); }
+  finally { hideLoading(); }
+}
+
+function displayAttachResult(d) {
+  const card = document.getElementById('attachResult');
+  card.classList.add('show');
+  const score = d.risk_score || 0;
+  const rc = riskClass(score);
+
+  document.getElementById('attachResultHeader').className = `result-header ${rc}`;
+
+  const icons = { CRITICAL:'🚨', HIGH:'⚠️', MEDIUM:'🔶', LOW:'💡', SAFE:'✅' };
+  document.getElementById('attachIcon').textContent  = icons[d.risk_level] || '📄';
+  document.getElementById('attachLevel').textContent = d.risk_level;
+  document.getElementById('attachLevel').style.color = riskColor(score);
+  document.getElementById('attachScore').textContent = score;
+  document.getElementById('attachScore').style.color = riskColor(score);
+  document.getElementById('attachSummary').textContent = d.summary;
+
+  document.getElementById('attachFileDetails').innerHTML = `
+    <div class="info-cell"><div class="info-cell-label">Filename</div><div class="info-cell-val">${esc(d.filename)}</div></div>
+    <div class="info-cell"><div class="info-cell-label">File Size</div><div class="info-cell-val">${d.file_size_kb} KB</div></div>
+    <div class="info-cell"><div class="info-cell-label">Type</div><div class="info-cell-val">${esc(d.extension||'Unknown')}</div></div>
+    <div class="info-cell"><div class="info-cell-label">MD5 Hash</div><div class="info-cell-val" style="font-family:monospace;font-size:.75rem">${esc(d.file_hash)}</div></div>
+    <div class="info-cell"><div class="info-cell-label">Has Macros</div><div class="info-cell-val" style="color:${d.has_macros?'var(--danger)':'var(--safe)'}">${d.has_macros?'Yes ⚠️':'No'}</div></div>
+    <div class="info-cell"><div class="info-cell-label">Has Scripts</div><div class="info-cell-val" style="color:${d.has_scripts?'var(--danger)':'var(--safe)'}">${d.has_scripts?'Yes ⚠️':'No'}</div></div>
+  `;
+
+  const fl = document.getElementById('attachFindings'); fl.innerHTML = '';
+  if (d.risk_factors?.length) {
+    d.risk_factors.forEach(r => {
+      const el = document.createElement('div');
+      el.className = 'finding';
+      el.innerHTML = `<div class="finding-dot ${score>=60?'red':''}"></div><span>${esc(r)}</span>`;
+      fl.appendChild(el);
+    });
+  } else {
+    fl.innerHTML = '<div class="finding"><span style="color:var(--safe)">✓ No risk factors detected</span></div>';
+  }
+
+  card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+// ── WEBHOOK ───────────────────────────────────────────────────
+function saveWebhook() {
+  const url = document.getElementById('webhookUrl').value.trim();
+  if (!url) return alert('Enter a webhook URL');
+  localStorage.setItem('pip_webhook_url', url);
+  showWebhookStatus('✓ Webhook URL saved', 'success');
+}
+
+function testWebhook() {
+  const url = document.getElementById('webhookUrl').value.trim();
+  if (!url) return alert('Enter a webhook URL first');
+  fetch('/webhook/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ webhook_url: url })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.success) showWebhookStatus('✓ Test message sent to Slack successfully', 'success');
+    else showWebhookStatus('✗ ' + d.error, 'error');
+  })
+  .catch(() => showWebhookStatus('✗ Connection failed', 'error'));
+}
+
+function showWebhookStatus(msg, type) {
+  const el = document.getElementById('webhookStatus');
+  el.innerHTML = `<div class="webhook-status ${type}">${msg}</div>`;
+}
+
+async function maybeSendWebhookAlert(scanType, target, riskLevel, riskScore, riskFactors) {
+  const webhookUrl = localStorage.getItem('pip_webhook_url');
+  if (!webhookUrl) return;
+  if (riskScore < 60) return; // Only alert on HIGH and CRITICAL
+
+  try {
+    await fetch('/webhook/alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        webhook_url: webhookUrl,
+        scan_type: scanType,
+        target,
+        risk_level: riskLevel,
+        risk_score: riskScore,
+        risk_factors: riskFactors
+      })
+    });
+  } catch(e) {
+    console.warn('Webhook alert failed:', e);
+  }
+}
+
 // ── INIT ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => { loadStats(); });
+document.addEventListener('DOMContentLoaded', () => {
+  loadStats();
+  // Restore saved webhook URL
+  const saved = localStorage.getItem('pip_webhook_url');
+  const webhookInput = document.getElementById('webhookUrl');
+  if (saved && webhookInput) webhookInput.value = saved;
+});
 </script>
 </body>
 </html>
