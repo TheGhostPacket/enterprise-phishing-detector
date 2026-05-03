@@ -16,3 +16,4 @@ opencv-python-headless>=4.8.0
 numpy>=1.26.0
 joblib==1.5.3
 scikit-learn==1.6.1
+flask-limiter==3.5.0
