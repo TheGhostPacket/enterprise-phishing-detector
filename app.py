@@ -122,9 +122,14 @@ def dashboard():
 @app.route('/analyze', methods=['POST'])
 def analyze_email_route():
     try:
-        d = request.get_json()
-        sender, subject, body = d.get('sender','').strip(), d.get('subject','').strip(), d.get('body','').strip()
-        if not sender or not subject: return jsonify({'success': False, 'error': 'Provide sender and subject'}), 400
+        d = request.get_json(silent=True)
+    if not d:
+        return jsonify({'success': False, 'error': 'Invalid JSON body'}), 400
+    sender  = str(d.get('sender',  '') or '').strip()[:200]
+    subject = str(d.get('subject', '') or '').strip()[:300]
+    body    = str(d.get('body',    '') or '').strip()[:10000]
+    if not sender or not subject:
+    return jsonify({'success': False, 'error': 'Provide sender and subject'}), 400
         score, reasons, ml_prob, ml_conf, urls = analyze_email(subject, sender, body)
         
         if score >= 80: level, color, icon, advice = "CRITICAL", "#991b1b", "🚨", "Extreme danger"
@@ -144,8 +149,16 @@ def analyze_email_route():
 @app.route('/analyze-url', methods=['POST'])
 def analyze_url_route():
     try:
-        url = request.get_json().get('url', '').strip()
-        if not url: return jsonify({'success': False, 'error': 'Provide URL'}), 400
+        d = request.get_json(silent=True)
+        if not d:
+            return jsonify({'success': False, 'error': 'Invalid JSON body'}), 400
+        url = str(d.get('url', '') or '').strip()[:2000]
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide a URL'}), 400
+        if not url.startswith('http'):
+            url = 'https://' + url
+        if len(url) > 2000:
+            return jsonify({'success': False, 'error': 'URL too long'}), 400
         if not url.startswith('http'): url = 'https://' + url
         
         # Basic analysis
@@ -202,9 +215,14 @@ def analyze_url_route():
 @app.route('/quick-url-check', methods=['POST'])
 def quick_check():
     try:
-        url = request.get_json().get('url', '').strip()
-        if not url: return jsonify({'success': False, 'error': 'Provide URL'}), 400
-        if not url.startswith('http'): url = 'https://' + url
+        d = request.get_json(silent=True)
+        if not d:
+            return jsonify({'success': False, 'error': 'Invalid JSON body'}), 400
+        url = str(d.get('url', '') or '').strip()[:2000]
+        if not url:
+            return jsonify({'success': False, 'error': 'Provide a URL'}), 400
+        if not url.startswith('http'):
+            url = 'https://' + url
         domain = urlparse(url).netloc.lower()
         score, findings = 0, []
         
@@ -271,7 +289,12 @@ def scan_qr():
 @app.route('/analyze-headers', methods=['POST'])
 def analyze_headers():
     try:
-        headers = request.get_json().get('headers', '')
+        d = request.get_json(silent=True)
+        if not d:
+            return jsonify({'success': False, 'error': 'Invalid JSON body'}), 400
+        headers = str(d.get('headers', '') or '').strip()[:50000]
+        if not headers:
+            return jsonify({'success': False, 'error': 'Provide email headers'}), 400
         return jsonify(header_analyzer.analyze_headers(headers))
     except Exception as e: return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -528,10 +551,20 @@ def report_phishing():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.errorhandler(404)
-def not_found(e): return render_template('index.html'), 404
+def not_found(e):
+    if request.path.startswith('/api') or request.is_json:
+        return jsonify({'success': False, 'error': 'Endpoint not found'}), 404
+    return render_template('landing.html'), 404
+
+@app.errorhandler(429)
+def rate_limited(e):
+    return jsonify({'success': False, 'error': 'Too many requests. Please slow down and try again shortly.'}), 429
 
 @app.errorhandler(500)
-def error(e): return jsonify({'success': False, 'error': 'Server error'}), 500
+def server_error(e):
+    if request.path.startswith('/api') or request.is_json:
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+    return render_template('landing.html'), 500
 
 if __name__ == '__main__':
     print("=" * 50)
